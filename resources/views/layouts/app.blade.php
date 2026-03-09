@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     @stack('head')
 </head>
-<body class="bg-gray-50 font-sans text-slate-700">
+<body class="bg-gray-100 font-sans text-slate-700">
 <div class="min-h-screen" x-data="{ open: true, profileOpen: false }">
     <aside
         class="fixed inset-y-0 left-0 z-40 w-64 min-h-screen bg-indigo-700 text-white transition-transform duration-200"
