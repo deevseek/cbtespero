@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login - Espero CBT</title>@vite(['resources/css/app.css'])</head>
+<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login - Espero CBT</title><x-partials.vite-assets :entries="['resources/css/app.css']" /></head>
 <body class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
 <form action="{{ route('login.attempt') }}" method="post" class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 space-y-4">@csrf
     <h1 class="text-2xl font-bold text-blue-700">Espero CBT</h1>
