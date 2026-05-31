@@ -13,7 +13,7 @@ use Filament\Tables\Table;
 class SettingResource extends Resource
 {
     protected static ?string $model = Setting::class;
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationLabel = 'Pengaturan CBT';
 
     public static function form(Form $form): Form

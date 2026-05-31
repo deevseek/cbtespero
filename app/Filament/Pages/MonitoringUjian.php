@@ -8,7 +8,7 @@ use Filament\Pages\Page;
 
 class MonitoringUjian extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-computer-desktop';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-computer-desktop';
     protected static ?string $navigationLabel = 'Monitoring Ujian';
     protected static string $view = 'filament.pages.monitoring-ujian';
 

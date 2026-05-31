@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 class ExamResource extends Resource
 {
     protected static ?string $model = Exam::class;
-    protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-academic-cap';
     protected static ?string $navigationLabel = 'Ujian';
 
     public static function form(Form $form): Form
