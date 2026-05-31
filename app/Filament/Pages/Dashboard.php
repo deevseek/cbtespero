@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Widgets\CbtStatsOverview;
-use App\Filament\Widgets\ExamActivityChart;
 use App\Filament\Widgets\LatestExamLogsTable;
 use App\Filament\Widgets\LatestExamsTable;
 use Filament\Pages\Dashboard as BaseDashboard;
@@ -42,7 +41,6 @@ class Dashboard extends BaseDashboard
             CbtStatsOverview::class,
             LatestExamsTable::class,
             LatestExamLogsTable::class,
-            ExamActivityChart::class,
         ];
     }
 }
