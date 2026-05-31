@@ -23,9 +23,18 @@ class ExamTokenResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Forms\Components\TextInput::make('exam_id')->label('Exam ID / Ujian'),
-            Forms\Components\TextInput::make('token')->label('Token'),
-            Forms\Components\Toggle::make('is_active')->label('Aktif'),
+            Forms\Components\Select::make('exam_id')
+                ->label('Ujian')
+                ->relationship('exam', 'nama_ujian')
+                ->searchable()
+                ->preload()
+                ->required(),
+            Forms\Components\TextInput::make('token')
+                ->label('Token')
+                ->required()
+                ->maxLength(50)
+                ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper(trim($state)) : null),
+            Forms\Components\Toggle::make('is_active')->label('Aktif')->default(true),
             Forms\Components\DateTimePicker::make('expires_at')->label('Kedaluwarsa'),
         ]);
     }
@@ -34,7 +43,7 @@ class ExamTokenResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('exam_id')->label('Exam ID / Ujian')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('exam.nama_ujian')->label('Ujian')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('token')->label('Token')->badge()->color('info')->searchable()->sortable(),
                 Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean()->sortable(),
                 Tables\Columns\TextColumn::make('expires_at')->label('Kedaluwarsa')->dateTime('d M Y H:i')->placeholder('Tidak ada')->sortable(),
