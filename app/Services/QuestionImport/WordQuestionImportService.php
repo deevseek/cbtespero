@@ -261,6 +261,8 @@ class WordQuestionImportService
      */
     public function importToDatabase(array $questions, array $options): array
     {
+        $options['source_type'] = 'word';
+
         return app(QuestionImportPersister::class)->import($questions, $options);
     }
 }
