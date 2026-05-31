@@ -13,10 +13,10 @@ use Illuminate\Support\Collection;
 class LatestActivityWidget extends Widget
 {
     protected string $view = 'filament.widgets.latest-activity';
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 6;
     protected int | string | array $columnSpan = [
         'md' => 1,
-        'xl' => 2,
+        'xl' => 3,
     ];
     protected ?string $pollingInterval = '10s';
 

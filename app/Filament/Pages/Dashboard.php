@@ -44,7 +44,7 @@ class Dashboard extends BaseDashboard
     {
         return [
             'md' => 2,
-            'xl' => 4,
+            'xl' => 3,
         ];
     }
 
@@ -54,9 +54,9 @@ class Dashboard extends BaseDashboard
             CbtStatsOverview::class,
             ExamActivityChart::class,
             ExamStatusChart::class,
-            LatestActivityWidget::class,
             LatestExamsTable::class,
             DeviceSummaryWidget::class,
+            LatestActivityWidget::class,
         ];
     }
 }

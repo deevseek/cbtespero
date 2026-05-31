@@ -5,14 +5,14 @@
     @php($activities = $this->getActivities())
 
     @if ($activities->isEmpty())
-        <div class="rounded-2xl border border-slate-700/60 bg-slate-900/50 p-6 text-center">
+        <div class="cbt-dashboard-empty-state rounded-2xl p-6 text-center">
             <div class="text-sm font-semibold text-slate-100">Belum ada aktivitas terbaru</div>
             <div class="mt-1 text-sm text-slate-400">Ujian dimulai, penyelesaian ujian, pelanggaran, token, dan soal baru akan tampil di sini.</div>
         </div>
     @else
         <div class="space-y-3">
             @foreach ($activities as $activity)
-                <div class="flex items-start gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/30 p-3">
+                <div class="cbt-activity-item flex items-start gap-3 rounded-2xl p-3">
                     <div @class([
                         'mt-1 h-2.5 w-2.5 rounded-full shadow-lg',
                         'bg-blue-400 shadow-blue-400/40' => $activity['color'] === 'blue',

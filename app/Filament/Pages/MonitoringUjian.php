@@ -117,6 +117,7 @@ class MonitoringUjian extends Page implements HasTable
         return match ($state) {
             'sedang_mengerjakan' => 'info',
             'selesai' => 'success',
+            'belum_mulai' => 'warning',
             default => 'gray',
         };
     }

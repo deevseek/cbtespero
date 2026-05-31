@@ -14,7 +14,7 @@ class ExamActivityChart extends ChartWidget
     protected static ?int $sort = 2;
     protected int | string | array $columnSpan = [
         'md' => 2,
-        'xl' => 3,
+        'xl' => 2,
     ];
     protected ?string $pollingInterval = '30s';
 
@@ -37,6 +37,36 @@ class ExamActivityChart extends ChartWidget
                 ['label' => 'Pelanggaran', 'data' => $violations, 'borderColor' => '#ef4444', 'backgroundColor' => 'rgba(239, 68, 68, 0.10)', 'fill' => true, 'tension' => 0.42],
             ],
             'labels' => $labels,
+        ];
+    }
+
+
+    protected function getOptions(): array
+    {
+        return [
+            'plugins' => [
+                'legend' => [
+                    'labels' => ['color' => '#cbd5e1', 'boxWidth' => 10, 'usePointStyle' => true],
+                ],
+                'tooltip' => [
+                    'backgroundColor' => 'rgba(15, 23, 42, 0.96)',
+                    'borderColor' => 'rgba(96, 165, 250, 0.24)',
+                    'borderWidth' => 1,
+                    'titleColor' => '#f8fafc',
+                    'bodyColor' => '#cbd5e1',
+                ],
+            ],
+            'scales' => [
+                'x' => [
+                    'grid' => ['color' => 'rgba(148, 163, 184, 0.08)', 'drawBorder' => false],
+                    'ticks' => ['color' => '#94a3b8'],
+                ],
+                'y' => [
+                    'beginAtZero' => true,
+                    'grid' => ['color' => 'rgba(148, 163, 184, 0.10)', 'drawBorder' => false],
+                    'ticks' => ['color' => '#94a3b8', 'precision' => 0],
+                ],
+            ],
         ];
     }
 
