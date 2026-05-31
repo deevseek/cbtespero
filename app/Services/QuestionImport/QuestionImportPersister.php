@@ -107,7 +107,9 @@ class QuestionImportPersister
         }
 
         if (Schema::hasColumn('questions', 'status')) {
-            $attributes['status'] = $options['status'] ?? 'draft';
+            $attributes['status'] = filled($question['correct_answer'] ?? null)
+                ? ($options['status'] ?? 'draft')
+                : 'draft';
         }
 
         if (Schema::hasColumn('questions', 'needs_review')) {

@@ -126,6 +126,7 @@ class ListQuestions extends ListRecords
                 $service = app(PdfQuestionImportService::class);
                 $questions = $service->parseFile($this->resolveUploadedPath($data['pdf_file'] ?? null));
                 $result = $service->importToDatabase($questions, $options);
+                $result['source'] = 'pdf';
             } elseif ($method === 'word') {
                 $service = app(WordQuestionImportService::class);
                 $questions = $service->parseFile($this->resolveUploadedPath($data['word_file'] ?? null));
@@ -190,7 +191,9 @@ class ListQuestions extends ListRecords
         $review = $result['review'];
         $needsReview = $review + $failed;
         $ignoredIdentity = (int) ($result['ignored_identity'] ?? 0);
-        $isGoogleForm = ($result['source'] ?? null) === 'google_form';
+        $source = $result['source'] ?? null;
+        $isGoogleForm = $source === 'google_form';
+        $isPdf = $source === 'pdf';
 
         if ($isGoogleForm) {
             if ($created === 0) {
@@ -236,6 +239,47 @@ class ListQuestions extends ListRecords
             return;
         }
 
+        if ($isPdf) {
+            if ($created === 0) {
+                Notification::make()
+                    ->title('Import PDF gagal')
+                    ->body('Format soal PDF belum dikenali. Pastikan soal memiliki nomor, opsi A-E, atau gunakan template import yang disediakan.')
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            $message = "Import PDF selesai. {$created} soal berhasil diimport";
+
+            if ($failed > 0) {
+                $message .= ", {$failed} soal gagal diproses";
+            }
+
+            if ($review > 0) {
+                $message .= $failed > 0
+                    ? ", {$review} soal perlu diperiksa"
+                    : " sebagai Draft karena kunci jawaban tidak ditemukan pada teks PDF";
+                $message .= '. Jawaban yang hanya ditandai highlight pada PDF tidak dapat dibaca oleh parser teks. Soal disimpan sebagai Draft untuk direview.';
+            } else {
+                $message .= '.';
+            }
+
+            $notification = Notification::make()
+                ->title($review > 0 || $failed > 0 ? 'Import PDF selesai dengan catatan' : 'Import PDF berhasil')
+                ->body($message);
+
+            if ($review > 0 || $failed > 0) {
+                $notification->warning();
+            } else {
+                $notification->success();
+            }
+
+            $notification->send();
+
+            return;
+        }
+
         if ($created > 0 && $needsReview === 0) {
             Notification::make()
                 ->title('Import soal berhasil')
@@ -258,7 +302,7 @@ class ListQuestions extends ListRecords
 
         Notification::make()
             ->title('Import soal gagal')
-            ->body('File tidak dapat dibaca atau format soal tidak dikenali. Pastikan soal memiliki opsi A-D/E dan kunci jawaban.')
+            ->body('Format soal belum dikenali. Pastikan soal memiliki nomor, opsi A-E, atau gunakan template import yang disediakan.')
             ->danger()
             ->send();
     }

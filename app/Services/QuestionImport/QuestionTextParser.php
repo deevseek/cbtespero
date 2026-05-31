@@ -61,7 +61,7 @@ class QuestionTextParser
             $options[$parsedLine['key']] = $parsedLine['text'];
         }
 
-        if (count($options) < 2 && $correctAnswer !== null && count($lines) >= 6) {
+        if (count($options) < 4 && count($lines) >= 5) {
             $fallback = $this->parseUnlabelledOptions($lines);
 
             if ($fallback !== null) {
@@ -71,20 +71,26 @@ class QuestionTextParser
         }
 
         $questionText = $this->cleanMultilineText(implode("\n", $questionLines));
+        $questionText = $this->stripQuestionNumberMarkers($questionText);
+        $options = array_filter(
+            array_map(fn (string $option): string => $this->cleanInlineText($option), $options),
+            fn (string $option): bool => $option !== ''
+        );
 
         if ($questionText === '') {
             return null;
         }
 
         $correctAnswer = $correctAnswer !== null ? strtoupper($correctAnswer) : null;
-        $isMultipleChoice = count(array_filter($options, fn (string $option): bool => $option !== '')) >= 2;
+        $filledOptions = count($options);
+        $isMultipleChoice = $filledOptions >= 4;
 
         return [
             'question_text' => $questionText,
             'options' => $options,
             'correct_answer' => $correctAnswer,
             'type' => $isMultipleChoice ? 'multiple_choice' : 'essay',
-            'needs_review' => ! $isMultipleChoice || $correctAnswer === null || count($options) < 5,
+            'needs_review' => ! $isMultipleChoice || $correctAnswer === null || $filledOptions < 5,
         ];
     }
 
@@ -98,23 +104,84 @@ class QuestionTextParser
         }
 
         $blocks = [];
-        $firstOffset = $matches[0][0][1];
-        $sharedPassage = trim(substr($text, 0, $firstOffset));
+        $pendingPassage = trim(substr($text, 0, $matches[0][0][1]));
         $matchCount = count($matches[0]);
 
         for ($index = 0; $index < $matchCount; $index++) {
             $start = $matches[0][$index][1];
             $end = $index + 1 < $matchCount ? $matches[0][$index + 1][1] : strlen($text);
-            $block = trim(substr($text, $start, $end - $start));
+            $chunk = trim(substr($text, $start, $end - $start));
 
-            if ($block === '') {
+            if ($chunk === '') {
                 continue;
             }
 
-            $blocks[] = $sharedPassage !== '' ? $sharedPassage."\n".$block : $block;
+            $split = $this->splitTrailingPassage($chunk);
+            $block = $pendingPassage !== '' ? $pendingPassage."\n".$split['question'] : $split['question'];
+            $block = trim($block);
+
+            if ($block !== '') {
+                $blocks[] = $block;
+            }
+
+            $pendingPassage = $split['passage'];
         }
 
         return $blocks;
+    }
+
+    /**
+     * @return array{question: string, passage: string}
+     */
+    private function splitTrailingPassage(string $block): array
+    {
+        $lines = preg_split('/\n/u', $block) ?: [];
+        $optionLabelsSeen = [];
+        $lastOptionLine = null;
+
+        foreach ($lines as $index => $line) {
+            if (preg_match('/^\s*([A-Ea-e])(?:[\.)]\s*|\s+)(?:\S.*)?$/u', trim($line), $matches)) {
+                $label = strtoupper($matches[1]);
+
+                if ($label === 'A' || $optionLabelsSeen !== []) {
+                    $optionLabelsSeen[$label] = true;
+                    $lastOptionLine = $index;
+                }
+            }
+        }
+
+        if ($lastOptionLine === null || count($optionLabelsSeen) < 4 || $lastOptionLine >= count($lines) - 1) {
+            return ['question' => $block, 'passage' => ''];
+        }
+
+        if (preg_match('/^\s*[A-Ea-e]\s*[\.)]\s*$/u', trim($lines[$lastOptionLine]))) {
+            return ['question' => $block, 'passage' => ''];
+        }
+
+        $tailLines = array_slice($lines, $lastOptionLine + 1);
+        $tailText = trim(implode("\n", $tailLines));
+
+        if ($tailText === '') {
+            return ['question' => $block, 'passage' => ''];
+        }
+
+        $questionLines = array_slice($lines, 0, $lastOptionLine + 1);
+        $firstTailLine = trim((string) ($tailLines[0] ?? ''));
+
+        if ($this->looksLikeAnswerText($firstTailLine)) {
+            $questionLines[] = $firstTailLine;
+            $tailLines = array_slice($tailLines, 1);
+            $tailText = trim(implode("\n", $tailLines));
+
+            if ($tailText === '') {
+                return ['question' => $block, 'passage' => ''];
+            }
+        }
+
+        return [
+            'question' => trim(implode("\n", $questionLines)),
+            'passage' => $tailText,
+        ];
     }
 
     /**
@@ -131,14 +198,26 @@ class QuestionTextParser
                 continue;
             }
 
-            if (preg_match('/^(?:Jawaban|Kunci|Answer)\s*[:\-]?\s*([A-Ea-e])\b.*$/u', $line, $matches)
-                || preg_match('/^([A-Ea-e])$/u', $line, $matches)) {
+            if (preg_match('/^(?:Jawaban|Kunci|Answer|ANS|Correct\s+Answer)\s*[:\-]?\s*([A-Ea-e])\b.*$/iu', $line, $matches)) {
                 array_splice($lines, $index, 1);
 
                 return [
                     'text' => trim(implode("\n", $lines)),
                     'answer' => strtoupper($matches[1]),
                 ];
+            }
+
+            if (preg_match('/^([A-Ea-e])$/u', $line, $matches)) {
+                $textBeforeAnswer = trim(implode("\n", array_slice($lines, 0, $index)));
+
+                if (preg_match('/^\s*E\s*(?:[\.)]|\s+)\s*/miu', $textBeforeAnswer)) {
+                    array_splice($lines, $index, 1);
+
+                    return [
+                        'text' => trim(implode("\n", $lines)),
+                        'answer' => strtoupper($matches[1]),
+                    ];
+                }
             }
 
             break;
@@ -155,13 +234,42 @@ class QuestionTextParser
     {
         $result = [];
         $currentOption = null;
+        $pendingOption = null;
 
-        foreach ($lines as $line) {
-            if (preg_match('/^([A-Ea-e])(?:[\.)]|\s+)\s*(\S.*)$/u', $line, $matches)) {
+        foreach ($lines as $index => $line) {
+            if (preg_match('/^([A-Ea-e])\s*[\.)]\s*$/u', $line, $matches)) {
+                $pendingOption = strtoupper($matches[1]);
+                $currentOption = null;
+
+                continue;
+            }
+
+            if (preg_match('/^([A-Ea-e])[\.)]\s*(\S.*)$/u', $line, $matches)) {
                 $key = strtoupper($matches[1]);
                 $text = trim($matches[2]);
                 $currentOption = $key;
+                $pendingOption = null;
                 $result[] = ['kind' => 'option', 'key' => $key, 'text' => $text];
+
+                continue;
+            }
+
+            if (preg_match('/^([A-Ea-e])\s+(\S.*)$/u', $line, $matches)) {
+                $key = strtoupper($matches[1]);
+
+                if ($key !== 'A' || $this->nextLineStartsWithLabel($lines, $index, 'B')) {
+                    $currentOption = $key;
+                    $pendingOption = null;
+                    $result[] = ['kind' => 'option', 'key' => $key, 'text' => trim($matches[2])];
+
+                    continue;
+                }
+            }
+
+            if ($pendingOption !== null) {
+                $currentOption = $pendingOption;
+                $pendingOption = null;
+                $result[] = ['kind' => 'option', 'key' => $currentOption, 'text' => $line];
 
                 continue;
             }
@@ -185,19 +293,44 @@ class QuestionTextParser
 
     /**
      * @param array<int, string> $lines
+     */
+    private function nextLineStartsWithLabel(array $lines, int $currentIndex, string $expectedLabel): bool
+    {
+        for ($index = $currentIndex + 1; $index < count($lines); $index++) {
+            $line = trim($lines[$index]);
+
+            if ($line === '') {
+                continue;
+            }
+
+            return (bool) preg_match('/^'.preg_quote($expectedLabel, '/').'\s*(?:[\.)]|\s+)\s*\S/iu', $line)
+                || (bool) preg_match('/^'.preg_quote($expectedLabel, '/').'\s*[\.)]\s*$/iu', $line);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $lines
      * @return array{question_lines: array<int, string>, options: array<string, string>}|null
      */
     private function parseUnlabelledOptions(array $lines): ?array
     {
-        $optionLines = array_slice($lines, -5);
-        $questionLines = array_slice($lines, 0, -5);
+        $optionCount = min(5, count($lines) - 1);
 
-        if (count($optionLines) !== 5 || $questionLines === []) {
+        if ($optionCount < 4) {
+            return null;
+        }
+
+        $optionLines = array_slice($lines, -$optionCount);
+        $questionLines = array_slice($lines, 0, -$optionCount);
+
+        if ($questionLines === []) {
             return null;
         }
 
         $options = [];
-        foreach (['A', 'B', 'C', 'D', 'E'] as $index => $key) {
+        foreach (array_slice(['A', 'B', 'C', 'D', 'E'], 0, $optionCount) as $index => $key) {
             $option = $this->cleanInlineText($optionLines[$index] ?? '');
             if ($option === '') {
                 return null;
@@ -210,6 +343,18 @@ class QuestionTextParser
             'question_lines' => $questionLines,
             'options' => $options,
         ];
+    }
+
+    private function stripQuestionNumberMarkers(string $text): string
+    {
+        $text = preg_replace('/(^|\n)\s*\d+\s*[\.)]\s*/u', '$1', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    private function looksLikeAnswerText(string $text): bool
+    {
+        return (bool) preg_match('/^(?:Jawaban|Kunci|Answer|ANS|Correct\s+Answer)\s*[:\-]?\s*[A-E]\b|^[A-E]$/iu', trim($text));
     }
 
     /**
