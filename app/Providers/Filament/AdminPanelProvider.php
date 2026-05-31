@@ -2,6 +2,13 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Resources\ExamLogResource;
+use App\Filament\Resources\ExamResource;
+use App\Filament\Resources\ExamResultResource;
+use App\Filament\Resources\ExamTokenResource;
+use App\Filament\Resources\QuestionResource;
+use App\Filament\Resources\SettingResource;
+use App\Filament\Resources\StudentResource;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -27,7 +34,15 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->colors(['primary' => Color::Blue])
-            ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
+            ->resources([
+                ExamResource::class,
+                ExamLogResource::class,
+                ExamResultResource::class,
+                ExamTokenResource::class,
+                QuestionResource::class,
+                SettingResource::class,
+                StudentResource::class,
+            ])
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([Dashboard::class])
             ->middleware([
