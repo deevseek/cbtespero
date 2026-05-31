@@ -39,7 +39,7 @@ class ExamResultResource extends Resource
                 Tables\Columns\TextColumn::make('last_heartbeat_at')->label('Last Seen')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('app_exit_count')->label('Keluar App')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('fullscreen_exit_count')->label('Keluar Fullscreen')->searchable()->sortable(),
-            ])->actions([Tables\Actions\EditAction::make()])->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ])->actions([\Filament\Actions\EditAction::make()])->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])]);
     }
 
     public static function getPages(): array

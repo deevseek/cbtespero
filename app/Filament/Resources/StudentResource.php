@@ -35,7 +35,7 @@ class StudentResource extends Resource
                 Tables\Columns\TextColumn::make('kelas')->label('Kelas')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('username')->label('Username')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('status')->label('Status')->searchable()->sortable(),
-            ])->actions([Tables\Actions\EditAction::make()])->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ])->actions([\Filament\Actions\EditAction::make()])->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])]);
     }
 
     public static function getPages(): array

@@ -33,7 +33,7 @@ class QuestionResource extends Resource
                 Tables\Columns\TextColumn::make('soal')->label('Soal')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('tingkat_kesulitan')->label('Kesulitan')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('bobot_nilai')->label('Bobot')->searchable()->sortable(),
-            ])->actions([Tables\Actions\EditAction::make()])->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ])->actions([\Filament\Actions\EditAction::make()])->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])]);
     }
 
     public static function getPages(): array

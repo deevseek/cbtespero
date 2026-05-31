@@ -35,7 +35,7 @@ class SettingResource extends Resource
                 Tables\Columns\TextColumn::make('tahun_ajaran')->label('Tahun')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('acak_soal')->label('Acak Soal')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('acak_jawaban')->label('Acak Jawaban')->searchable()->sortable(),
-            ])->actions([Tables\Actions\EditAction::make()])->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ])->actions([\Filament\Actions\EditAction::make()])->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])]);
     }
 
     public static function getPages(): array

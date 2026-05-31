@@ -61,8 +61,8 @@ class ExamResource extends Resource
             Tables\Columns\TextColumn::make('status')->badge(),
             Tables\Columns\TextColumn::make('token')->label('Token'),
         ])->actions([
-            Tables\Actions\Action::make('regenerate_token')->label('Regenerate Token')->action(fn (Exam $record) => $record->update(['token' => strtoupper(Str::random(5))])),
-            Tables\Actions\EditAction::make(),
+            \Filament\Actions\Action::make('regenerate_token')->label('Regenerate Token')->action(fn (Exam $record) => $record->update(['token' => strtoupper(Str::random(5))])),
+            \Filament\Actions\EditAction::make(),
         ]);
     }
 
