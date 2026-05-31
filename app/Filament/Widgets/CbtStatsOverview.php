@@ -49,3 +49,4 @@ class CbtStatsOverview extends BaseWidget
         ];
     }
 }
+

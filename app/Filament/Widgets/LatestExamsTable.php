@@ -61,3 +61,4 @@ class LatestExamsTable extends BaseWidget
             ->emptyStateIcon('heroicon-o-academic-cap');
     }
 }
+

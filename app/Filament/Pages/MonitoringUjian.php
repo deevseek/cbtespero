@@ -20,7 +20,7 @@ class MonitoringUjian extends Page implements HasTable
     protected static ?string $navigationLabel = 'Monitoring Ujian';
     protected static ?string $title = 'Monitoring Ujian';
     protected static ?int $navigationSort = 1;
-    protected static string $view = 'filament.pages.monitoring-ujian';
+    protected string $view = 'filament.pages.monitoring-ujian';
 
     public function table(Table $table): Table
     {
@@ -159,3 +159,4 @@ class MonitoringUjian extends Page implements HasTable
             ->send();
     }
 }
+

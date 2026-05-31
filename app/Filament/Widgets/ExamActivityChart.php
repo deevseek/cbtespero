@@ -50,3 +50,4 @@ class ExamActivityChart extends ChartWidget
         return 'line';
     }
 }
+

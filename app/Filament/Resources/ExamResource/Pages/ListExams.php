@@ -17,3 +17,4 @@ class ListExams extends ListRecords
         ];
     }
 }
+

@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ExamResource\Pages;
 use App\Models\Exam;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,9 +17,9 @@ class ExamResource extends Resource
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-academic-cap';
     protected static ?string $navigationLabel = 'Ujian';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema([
+        return $schema->components([
             Forms\Components\Section::make('Data Ujian')->schema([
                 Forms\Components\TextInput::make('nama_ujian')->required(),
                 Forms\Components\TextInput::make('mata_pelajaran')->required(),
@@ -75,3 +75,4 @@ class ExamResource extends Resource
         ];
     }
 }
+

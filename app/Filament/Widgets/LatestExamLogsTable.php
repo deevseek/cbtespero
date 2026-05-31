@@ -57,3 +57,4 @@ class LatestExamLogsTable extends BaseWidget
             ->emptyStateIcon('heroicon-o-shield-check');
     }
 }
+

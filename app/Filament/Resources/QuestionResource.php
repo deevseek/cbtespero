@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\QuestionResource\Pages;
 use App\Models\Question;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,9 +16,9 @@ class QuestionResource extends Resource
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationLabel = 'Bank Soal';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema([
+        return $schema->components([
                 Forms\Components\TextInput::make('mata_pelajaran')->label('Mapel'),
                 Forms\Components\TextInput::make('soal')->label('Soal'),
                 Forms\Components\TextInput::make('tingkat_kesulitan')->label('Kesulitan'),
@@ -45,3 +45,4 @@ class QuestionResource extends Resource
         ];
     }
 }
+

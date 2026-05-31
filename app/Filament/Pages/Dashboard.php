@@ -46,3 +46,4 @@ class Dashboard extends BaseDashboard
         ];
     }
 }
+

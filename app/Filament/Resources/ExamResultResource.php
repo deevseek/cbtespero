@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ExamResultResource\Pages;
 use App\Models\ExamResult;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,9 +16,9 @@ class ExamResultResource extends Resource
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationLabel = 'Hasil & Monitoring';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema([
+        return $schema->components([
                 Forms\Components\TextInput::make('exam_id')->label('Exam'),
                 Forms\Components\TextInput::make('student_id')->label('Siswa'),
                 Forms\Components\TextInput::make('status')->label('Status'),
@@ -51,3 +51,4 @@ class ExamResultResource extends Resource
         ];
     }
 }
+
