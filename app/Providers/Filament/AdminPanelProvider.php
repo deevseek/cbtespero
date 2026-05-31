@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\MonitoringUjian;
 use App\Filament\Resources\ExamLogResource;
 use App\Filament\Resources\ExamResource;
 use App\Filament\Resources\ExamResultResource;
@@ -9,11 +11,11 @@ use App\Filament\Resources\ExamTokenResource;
 use App\Filament\Resources\QuestionResource;
 use App\Filament\Resources\SettingResource;
 use App\Filament\Resources\StudentResource;
+use App\Models\Setting;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -22,6 +24,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -33,6 +36,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->brandName(fn (): string => $this->getBrandName())
             ->colors(['primary' => Color::Blue])
             ->resources([
                 ExamResource::class,
@@ -43,13 +47,24 @@ class AdminPanelProvider extends PanelProvider
                 SettingResource::class,
                 StudentResource::class,
             ])
-            ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
-            ->pages([Dashboard::class])
+            ->pages([
+                Dashboard::class,
+                MonitoringUjian::class,
+            ])
             ->middleware([
                 EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, VerifyCsrfToken::class,
                 SubstituteBindings::class, DisableBladeIconComponents::class, DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([Authenticate::class]);
+    }
+
+    private function getBrandName(): string
+    {
+        if (Schema::hasTable('settings')) {
+            return Setting::query()->value('nama_aplikasi') ?: 'Espero CBT';
+        }
+
+        return 'Espero CBT';
     }
 }

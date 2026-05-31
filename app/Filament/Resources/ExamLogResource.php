@@ -35,7 +35,7 @@ class ExamLogResource extends Resource
                 Tables\Columns\TextColumn::make('activity_type')->label('Tipe')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('ip_address')->label('IP')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('logged_at')->label('Waktu')->searchable()->sortable(),
-            ])->actions([Tables\Actions\EditAction::make()])->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ])->actions([\Filament\Actions\EditAction::make()])->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])]);
     }
 
     public static function getPages(): array

@@ -33,7 +33,7 @@ class ExamTokenResource extends Resource
                 Tables\Columns\TextColumn::make('token')->label('Token')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('is_active')->label('Aktif')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('expires_at')->label('Kedaluwarsa')->searchable()->sortable(),
-            ])->actions([Tables\Actions\EditAction::make()])->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ])->actions([\Filament\Actions\EditAction::make()])->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])]);
     }
 
     public static function getPages(): array
