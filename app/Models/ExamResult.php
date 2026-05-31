@@ -11,9 +11,11 @@ class ExamResult extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['exam_id','student_id','nilai','status','started_at','submitted_at','tab_switch_count','fullscreen_exit_count'];
+    protected $fillable = ['exam_id','student_id','nilai','status','started_at','submitted_at','tab_switch_count','fullscreen_exit_count','session_uuid','device_id','device_name','platform','app_version','server_started_at','server_ends_at','last_heartbeat_at','locked_at','lock_reason','auto_submitted_at','app_exit_count','heartbeat_missed_count','relogin_count','ip_address'];
 
     public function exam(): BelongsTo { return $this->belongsTo(Exam::class); }
     public function student(): BelongsTo { return $this->belongsTo(Student::class); }
     public function answers(): HasMany { return $this->hasMany(ExamAnswer::class); }
+    public function logs(): HasMany { return $this->hasMany(ExamLog::class); }
+    public function questionOrders(): HasMany { return $this->hasMany(ExamQuestionOrder::class); }
 }

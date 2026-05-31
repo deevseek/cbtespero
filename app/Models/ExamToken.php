@@ -9,5 +9,10 @@ class ExamToken extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['exam_id','token','is_active'];
+    protected $fillable = ['exam_id','token','is_active','expires_at'];
+
+    protected function casts(): array
+    {
+        return ['is_active' => 'boolean', 'expires_at' => 'datetime'];
+    }
 }

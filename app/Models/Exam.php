@@ -27,4 +27,9 @@ class Exam extends Model
     {
         return $this->hasMany(ExamToken::class);
     }
+
+    public function securitySetting(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ExamSecuritySetting::class);
+    }
 }

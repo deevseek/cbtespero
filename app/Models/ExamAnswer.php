@@ -9,5 +9,5 @@ class ExamAnswer extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['exam_result_id','question_id','jawaban_siswa','is_correct','answered_at'];
+    protected $fillable = ['exam_result_id','question_id','jawaban_siswa','is_correct','is_flagged','answered_at'];
 }
