@@ -17,9 +17,11 @@ return new class extends Migration {
             $table->text('pilihan_c');
             $table->text('pilihan_d');
             $table->text('pilihan_e')->nullable();
-            $table->enum('jawaban_benar', ['a', 'b', 'c', 'd', 'e']);
+            $table->enum('jawaban_benar', ['a', 'b', 'c', 'd', 'e'])->nullable();
             $table->unsignedInteger('bobot_nilai')->default(1);
             $table->enum('tingkat_kesulitan', ['mudah', 'sedang', 'sulit'])->default('sedang');
+            $table->enum('status', ['draft', 'aktif'])->default('aktif');
+            $table->boolean('needs_review')->default(false);
             $table->timestamps();
         });
     }
