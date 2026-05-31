@@ -117,8 +117,11 @@ class ListQuestions extends ListRecords
             if ($method === 'google_form') {
                 $service = app(GoogleFormImportService::class);
                 $formId = $service->extractFormIdFromUrl((string) ($data['google_form_url'] ?? ''));
-                $questions = $service->normalizeQuestions($service->fetchFormQuestions($formId));
-                $result = $service->importToDatabase($questions, $options);
+                $summary = $service->normalizeQuestionsWithSummary($service->fetchFormQuestions($formId));
+                $result = $service->importToDatabase($summary['questions'], $options);
+                $result['ignored_identity'] = $summary['ignored_identity'];
+                $result['failed'] += $summary['failed'];
+                $result['source'] = 'google_form';
             } elseif ($method === 'pdf') {
                 $service = app(PdfQuestionImportService::class);
                 $questions = $service->parseFile($this->resolveUploadedPath($data['pdf_file'] ?? null));
@@ -137,7 +140,9 @@ class ListQuestions extends ListRecords
 
             Notification::make()
                 ->title('Import soal gagal')
-                ->body($exception->getMessage() ?: 'File tidak dapat dibaca atau format soal tidak dikenali.')
+                ->body($method === 'google_form'
+                    ? ($exception->getMessage() ?: 'Google Form gagal diproses. Pastikan URL benar, form dapat diakses publik, lalu coba lagi.')
+                    : ($exception->getMessage() ?: 'File tidak dapat dibaca atau format soal tidak dikenali.'))
                 ->danger()
                 ->send();
         }
@@ -176,12 +181,60 @@ class ListQuestions extends ListRecords
     }
 
     /**
-     * @param array{created: int, review: int, failed: int, errors: array<int, string>} $result
+     * @param array{created: int, review: int, failed: int, errors: array<int, string>, ignored_identity?: int, source?: string} $result
      */
     private function sendImportNotification(array $result): void
     {
         $created = $result['created'];
-        $needsReview = $result['review'] + $result['failed'];
+        $failed = $result['failed'];
+        $review = $result['review'];
+        $needsReview = $review + $failed;
+        $ignoredIdentity = (int) ($result['ignored_identity'] ?? 0);
+        $isGoogleForm = ($result['source'] ?? null) === 'google_form';
+
+        if ($isGoogleForm) {
+            if ($created === 0) {
+                Notification::make()
+                    ->title($failed > 0 ? 'Import Google Form gagal' : 'Import Google Form selesai')
+                    ->body($failed > 0
+                        ? "Google Form berhasil dibaca, tetapi {$failed} item gagal diproses dan belum ada soal yang dapat disimpan."
+                        : 'Google Form berhasil dibaca, tetapi soal belum ditemukan. Pastikan soal berada di form yang sama dan bukan hanya data identitas.')
+                    ->warning()
+                    ->send();
+
+                return;
+            }
+
+            $message = "Import Google Form selesai. {$created} soal berhasil diimport";
+
+            if ($ignoredIdentity > 0) {
+                $message .= ", {$ignoredIdentity} field identitas diabaikan";
+            }
+
+            if ($review > 0) {
+                $message .= ", {$review} soal perlu review karena kunci jawaban tidak tersedia";
+            }
+
+            if ($failed > 0) {
+                $message .= ", {$failed} item gagal diproses";
+            }
+
+            $message .= '.';
+
+            $notification = Notification::make()
+                ->title($review > 0 || $failed > 0 ? 'Import selesai dengan catatan' : 'Import soal berhasil')
+                ->body($review > 0 ? $message.' Google Form berhasil dibaca, tetapi beberapa soal belum memiliki kunci jawaban dan disimpan sebagai Draft.' : $message);
+
+            if ($review > 0 || $failed > 0) {
+                $notification->warning();
+            } else {
+                $notification->success();
+            }
+
+            $notification->send();
+
+            return;
+        }
 
         if ($created > 0 && $needsReview === 0) {
             Notification::make()

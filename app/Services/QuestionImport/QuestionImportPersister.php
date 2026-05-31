@@ -21,7 +21,7 @@ class QuestionImportPersister
         $errors = [];
 
         foreach ($questions as $index => $question) {
-            $validationMessage = $this->validateQuestion($question);
+            $validationMessage = $this->validateQuestion($question, $options);
 
             if ($validationMessage !== null) {
                 $review++;
@@ -32,6 +32,10 @@ class QuestionImportPersister
             try {
                 Question::create($this->mapToQuestionAttributes($question, $options));
                 $created++;
+
+                if ((bool) ($question['needs_review'] ?? false)) {
+                    $review++;
+                }
             } catch (Throwable $exception) {
                 report($exception);
                 $failed++;
@@ -47,20 +51,28 @@ class QuestionImportPersister
         ];
     }
 
-    private function validateQuestion(array $question): ?string
+    private function validateQuestion(array $question, array $importOptions): ?string
     {
         $questionText = trim((string) ($question['question_text'] ?? ''));
         $options = (array) ($question['options'] ?? []);
         $correctAnswer = strtoupper((string) ($question['correct_answer'] ?? ''));
+        $allowMissingCorrectAnswer = (bool) ($importOptions['allow_missing_correct_answer'] ?? false);
+        $allowPartialOptions = (bool) ($importOptions['allow_partial_options'] ?? false);
 
         if ($questionText === '') {
             return 'teks pertanyaan kosong.';
         }
 
-        foreach (['A', 'B', 'C', 'D'] as $optionKey) {
-            if (blank($options[$optionKey] ?? null)) {
-                return 'opsi '.$optionKey.' belum lengkap.';
+        if (! $allowPartialOptions) {
+            foreach (['A', 'B', 'C', 'D'] as $optionKey) {
+                if (blank($options[$optionKey] ?? null)) {
+                    return 'opsi '.$optionKey.' belum lengkap.';
+                }
             }
+        }
+
+        if ($correctAnswer === '') {
+            return $allowMissingCorrectAnswer ? null : 'jawaban benar belum ditemukan.';
         }
 
         if (! in_array($correctAnswer, ['A', 'B', 'C', 'D', 'E'], true)) {
@@ -85,7 +97,7 @@ class QuestionImportPersister
             'pilihan_c' => (string) ($questionOptions['C'] ?? ''),
             'pilihan_d' => (string) ($questionOptions['D'] ?? ''),
             'pilihan_e' => filled($questionOptions['E'] ?? null) ? (string) $questionOptions['E'] : null,
-            'jawaban_benar' => strtolower((string) ($question['correct_answer'] ?? '')),
+            'jawaban_benar' => filled($question['correct_answer'] ?? null) ? strtolower((string) $question['correct_answer']) : null,
             'bobot_nilai' => (int) ($options['bobot_nilai'] ?? 1),
             'tingkat_kesulitan' => (string) ($options['tingkat_kesulitan'] ?? 'sedang'),
         ];
