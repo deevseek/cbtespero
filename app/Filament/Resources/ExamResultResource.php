@@ -16,7 +16,7 @@ class ExamResultResource extends Resource
     protected static ?string $model = ExamResult::class;
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-chart-bar-square';
     protected static ?string $navigationLabel = 'Hasil & Monitoring';
-    protected static ?string $navigationGroup = 'MONITORING';
+    protected static string | \UnitEnum | null $navigationGroup = 'MONITORING';
     protected static ?int $navigationSort = 1;
     protected static ?string $modelLabel = 'Hasil Ujian';
     protected static ?string $pluralModelLabel = 'Hasil & Monitoring';

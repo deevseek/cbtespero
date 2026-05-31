@@ -21,7 +21,7 @@ class MonitoringUjian extends Page implements HasTable
 
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-computer-desktop';
     protected static ?string $navigationLabel = 'Monitoring Ujian';
-    protected static ?string $navigationGroup = 'MONITORING';
+    protected static string | \UnitEnum | null $navigationGroup = 'MONITORING';
     protected static ?string $title = 'Monitoring Ujian';
     protected static ?int $navigationSort = 3;
     protected string $view = 'filament.pages.monitoring-ujian';

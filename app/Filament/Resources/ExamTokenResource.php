@@ -15,7 +15,7 @@ class ExamTokenResource extends Resource
     protected static ?string $model = ExamToken::class;
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-key';
     protected static ?string $navigationLabel = 'Token Ujian';
-    protected static ?string $navigationGroup = 'AKADEMIK';
+    protected static string | \UnitEnum | null $navigationGroup = 'AKADEMIK';
     protected static ?int $navigationSort = 2;
     protected static ?string $modelLabel = 'Token Ujian';
     protected static ?string $pluralModelLabel = 'Token Ujian';
