@@ -258,7 +258,7 @@ class ListQuestions extends ListRecords
 
         Notification::make()
             ->title('Import soal gagal')
-            ->body('File tidak dapat dibaca atau format soal tidak dikenali. Pastikan soal memiliki opsi A-D dan kunci jawaban.')
+            ->body('File tidak dapat dibaca atau format soal tidak dikenali. Pastikan soal memiliki opsi A-D/E dan kunci jawaban.')
             ->danger()
             ->send();
     }
