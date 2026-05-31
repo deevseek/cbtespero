@@ -13,7 +13,7 @@ use Filament\Tables\Table;
 class ExamResultResource extends Resource
 {
     protected static ?string $model = ExamResult::class;
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationLabel = 'Hasil & Monitoring';
 
     public static function form(Form $form): Form
