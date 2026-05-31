@@ -22,9 +22,13 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        $credentials['role'] = 'siswa';
+        $credentials['is_active'] = true;
+
         if (Auth::attempt($credentials, true)) {
             $request->session()->regenerate();
-            return redirect()->intended(route(Auth::user()->isAdmin() ? 'admin.dashboard' : 'student.dashboard'));
+
+            return redirect()->intended(route('student.dashboard'));
         }
 
         return back()->withErrors(['username' => 'Username/password salah.'])->onlyInput('username');
@@ -36,6 +40,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->route('student.login');
     }
 }
