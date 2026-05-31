@@ -9,12 +9,12 @@ use Filament\Resources\Pages\ListRecords;
 class ListExams extends ListRecords
 {
     protected static string $resource = ExamResource::class;
+    protected static ?string $title = 'Manajemen Ujian';
 
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()->label('Buat Ujian Baru')->icon('heroicon-m-plus'),
         ];
     }
 }
-

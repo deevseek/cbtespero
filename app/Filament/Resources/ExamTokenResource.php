@@ -5,35 +5,45 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ExamTokenResource\Pages;
 use App\Models\ExamToken;
 use Filament\Forms;
-use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 
 class ExamTokenResource extends Resource
 {
     protected static ?string $model = ExamToken::class;
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-key';
     protected static ?string $navigationLabel = 'Token Ujian';
+    protected static ?string $navigationGroup = 'AKADEMIK';
+    protected static ?int $navigationSort = 2;
+    protected static ?string $modelLabel = 'Token Ujian';
+    protected static ?string $pluralModelLabel = 'Token Ujian';
 
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-                Forms\Components\TextInput::make('exam_id')->label('Exam ID'),
-                Forms\Components\TextInput::make('token')->label('Token'),
-                Forms\Components\TextInput::make('is_active')->label('Aktif'),
-                Forms\Components\TextInput::make('expires_at')->label('Kedaluwarsa'),
+            Forms\Components\TextInput::make('exam_id')->label('Exam ID / Ujian'),
+            Forms\Components\TextInput::make('token')->label('Token'),
+            Forms\Components\Toggle::make('is_active')->label('Aktif'),
+            Forms\Components\DateTimePicker::make('expires_at')->label('Kedaluwarsa'),
         ]);
     }
 
     public static function table(Table $table): Table
     {
-        return $table->columns([
-                Tables\Columns\TextColumn::make('exam_id')->label('Exam ID')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('token')->label('Token')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('is_active')->label('Aktif')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('expires_at')->label('Kedaluwarsa')->searchable()->sortable(),
-            ])->actions([\Filament\Actions\EditAction::make()])->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])]);
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('exam_id')->label('Exam ID / Ujian')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('token')->label('Token')->badge()->color('info')->searchable()->sortable(),
+                Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean()->sortable(),
+                Tables\Columns\TextColumn::make('expires_at')->label('Kedaluwarsa')->dateTime('d M Y H:i')->placeholder('Tidak ada')->sortable(),
+            ])
+            ->actions([\Filament\Actions\EditAction::make()->label('Edit')])
+            ->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()->label('Hapus')])])
+            ->emptyStateHeading('Belum ada token ujian')
+            ->emptyStateDescription('Token ujian yang dibuat akan tampil di sini untuk akses peserta.')
+            ->emptyStateIcon('heroicon-o-key');
     }
 
     public static function getPages(): array
@@ -45,4 +55,3 @@ class ExamTokenResource extends Resource
         ];
     }
 }
-
