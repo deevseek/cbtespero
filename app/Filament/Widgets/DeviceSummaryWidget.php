@@ -10,10 +10,10 @@ use Illuminate\Support\Facades\Schema;
 class DeviceSummaryWidget extends Widget
 {
     protected string $view = 'filament.widgets.device-summary';
-    protected static ?int $sort = 6;
+    protected static ?int $sort = 5;
     protected int | string | array $columnSpan = [
         'md' => 1,
-        'xl' => 2,
+        'xl' => 1,
     ];
     protected ?string $pollingInterval = '10s';
 

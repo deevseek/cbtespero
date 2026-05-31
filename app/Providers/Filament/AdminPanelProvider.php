@@ -38,6 +38,8 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->brandName(fn (): string => $this->getBrandName())
             ->colors(['primary' => Color::Blue])
+            ->brandLogo(fn () => view('filament.components.brand'))
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->resources([
                 ExamResource::class,
                 ExamLogResource::class,

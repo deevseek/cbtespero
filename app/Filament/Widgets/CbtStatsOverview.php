@@ -15,6 +15,14 @@ class CbtStatsOverview extends BaseWidget
     protected ?string $pollingInterval = '10s';
     protected int | string | array $columnSpan = 'full';
 
+    protected function getColumns(): int | array
+    {
+        return [
+            'md' => 2,
+            'xl' => 5,
+        ];
+    }
+
     protected function getStats(): array
     {
         $activeExamCount = Exam::query()->whereIn('status', ['aktif', 'berlangsung'])->count();

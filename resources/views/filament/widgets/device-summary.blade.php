@@ -10,7 +10,7 @@
             ['label' => 'Tidak Aktif', 'value' => $summary['inactive'], 'class' => 'from-slate-500/20 to-slate-400/5 text-slate-300'],
             ['label' => 'Total', 'value' => $summary['total'], 'class' => 'from-blue-500/20 to-cyan-400/5 text-blue-300'],
         ] as $item)
-            <div class="rounded-2xl border border-slate-700/60 bg-gradient-to-br {{ $item['class'] }} p-4">
+            <div class="cbt-device-card rounded-2xl bg-gradient-to-br {{ $item['class'] }} p-4">
                 <div class="text-2xl font-black">{{ number_format($item['value']) }}</div>
                 <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ $item['label'] }}</div>
             </div>

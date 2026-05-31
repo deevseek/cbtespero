@@ -73,7 +73,7 @@ class ExamResultResource extends Resource
             'sedang_mengerjakan' => 'info',
             'selesai' => 'success',
             'terkunci', 'auto_submit' => 'danger',
-            'belum_mulai' => 'gray',
+            'belum_mulai' => 'warning',
             default => 'gray',
         };
     }

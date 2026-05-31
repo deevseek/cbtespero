@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 class LatestExamsTable extends BaseWidget
 {
     protected static ?string $heading = 'Ujian Terbaru';
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 4;
     protected int | string | array $columnSpan = [
         'md' => 2,
         'xl' => 2,
@@ -51,6 +51,7 @@ class LatestExamsTable extends BaseWidget
                         'aktif', 'berlangsung' => 'info',
                         'selesai' => 'success',
                         'dibatalkan' => 'danger',
+                        'terjadwal', 'belum_dimulai' => 'warning',
                         'draft' => 'gray',
                         default => 'warning',
                     }),
