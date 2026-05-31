@@ -26,26 +26,7 @@ class ExamResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Data Ujian')->schema([
-                Forms\Components\TextInput::make('nama_ujian')->label('Nama Ujian')->required(),
-                Forms\Components\TextInput::make('mata_pelajaran')->label('Mata Pelajaran')->required(),
-                Forms\Components\TextInput::make('kelas')->label('Kelas')->required(),
-                Forms\Components\DatePicker::make('tanggal_ujian')->label('Tanggal Ujian')->required(),
-                Forms\Components\TimePicker::make('jam_mulai')->label('Jam Mulai')->required(),
-                Forms\Components\TimePicker::make('jam_selesai')->label('Jam Selesai')->required(),
-                Forms\Components\TextInput::make('durasi')->label('Durasi')->numeric()->required(),
-                Forms\Components\TextInput::make('jumlah_soal')->label('Jumlah Soal')->numeric()->required(),
-                Forms\Components\Select::make('status')->label('Status')->options([
-                    'draft' => 'Draft',
-                    'aktif' => 'Berlangsung',
-                    'berlangsung' => 'Berlangsung',
-                    'terjadwal' => 'Terjadwal',
-                    'belum_dimulai' => 'Belum Dimulai',
-                    'selesai' => 'Selesai',
-                    'dibatalkan' => 'Dibatalkan',
-                ])->required(),
-                Forms\Components\TextInput::make('token')->label('Token')->maxLength(5)->helperText('Token lama tetap dipertahankan untuk kompatibilitas.'),
-            ])->columns(2),
+            self::examDetailsSection(),
             Section::make('Keamanan CBT')->relationship('securitySetting')->schema([
                 Forms\Components\Toggle::make('require_fullscreen')->label('Wajib Fullscreen')->default(true),
                 Forms\Components\Toggle::make('block_screenshot')->label('Blok Screenshot')->default(true),
@@ -63,6 +44,44 @@ class ExamResource extends Resource
                 Forms\Components\Select::make('orientation')->label('Orientasi')->options(['portrait' => 'Portrait', 'landscape' => 'Landscape'])->default('portrait'),
             ])->columns(2),
         ]);
+    }
+
+    public static function examDetailsSection(): Section
+    {
+        return Section::make('Data Ujian')->schema(self::examDetailsFormComponents())->columns(2);
+    }
+
+    public static function examDetailsFormComponents(): array
+    {
+        return [
+            Forms\Components\TextInput::make('nama_ujian')->label('Nama Ujian')->required(),
+            Forms\Components\TextInput::make('mata_pelajaran')->label('Mata Pelajaran')->required(),
+            Forms\Components\TextInput::make('kelas')->label('Kelas')->required(),
+            Forms\Components\DatePicker::make('tanggal_ujian')->label('Tanggal Ujian')->required(),
+            Forms\Components\TimePicker::make('jam_mulai')->label('Jam Mulai')->required(),
+            Forms\Components\TimePicker::make('jam_selesai')->label('Jam Selesai')->required(),
+            Forms\Components\TextInput::make('durasi')->label('Durasi')->numeric()->required(),
+            Forms\Components\TextInput::make('jumlah_soal')->label('Jumlah Soal')->numeric()->required(),
+            Forms\Components\Select::make('status')->label('Status')->options(self::statusOptions())->default('draft')->required(),
+            Forms\Components\TextInput::make('token')
+                ->label('Token Lama')
+                ->maxLength(5)
+                ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper(trim($state)) : null)
+                ->helperText('Opsional. Token utama sebaiknya dibuat lewat menu Token Ujian.'),
+        ];
+    }
+
+    public static function statusOptions(): array
+    {
+        return [
+            'draft' => 'Draft',
+            'aktif' => 'Berlangsung',
+            'berlangsung' => 'Berlangsung',
+            'terjadwal' => 'Terjadwal',
+            'belum_dimulai' => 'Belum Dimulai',
+            'selesai' => 'Selesai',
+            'dibatalkan' => 'Dibatalkan',
+        ];
     }
 
     public static function table(Table $table): Table
