@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 class LatestExamsTable extends BaseWidget
 {
     protected static ?string $heading = 'Ujian Terbaru';
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 5;
     protected int | string | array $columnSpan = [
         'md' => 2,
         'xl' => 2,
@@ -48,8 +48,10 @@ class LatestExamsTable extends BaseWidget
                     ->label('Status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'aktif' => 'success',
-                        'selesai' => 'gray',
+                        'aktif', 'berlangsung' => 'info',
+                        'selesai' => 'success',
+                        'dibatalkan' => 'danger',
+                        'draft' => 'gray',
                         default => 'warning',
                     }),
                 Tables\Columns\TextColumn::make('results_count')
@@ -58,6 +60,7 @@ class LatestExamsTable extends BaseWidget
             ])
             ->emptyStateHeading('Belum ada ujian')
             ->emptyStateDescription('Ujian yang dibuat akan muncul di sini.')
+            ->actions([\Filament\Actions\Action::make('lihat')->label('Lihat')->icon('heroicon-m-eye')->url(fn (Exam $record): string => route('filament.admin.resources.exams.edit', ['record' => $record]))])
             ->emptyStateIcon('heroicon-o-academic-cap');
     }
 }
