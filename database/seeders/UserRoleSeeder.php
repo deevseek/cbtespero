@@ -20,6 +20,14 @@ class UserRoleSeeder extends Seeder
                 'is_active' => true,
             ],
             [
+                'username' => 'admin-nugraha',
+                'name' => 'Administrator',
+                'email' => 'nugraha.deev@gmail.com',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+                'is_active' => true,
+            ],
+            [
                 'username' => 'siswa',
                 'name' => 'Siswa Demo',
                 'email' => 'siswa@espero.test',
@@ -31,7 +39,7 @@ class UserRoleSeeder extends Seeder
 
         foreach ($users as $user) {
             User::updateOrCreate(
-                ['username' => $user['username']],
+                ['email' => $user['email']],
                 $user
             );
         }

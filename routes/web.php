@@ -9,13 +9,15 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Student\ExamSessionController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/login');
-Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login'])->name('login.attempt');
+Route::redirect('/', '/admin/login');
+Route::redirect('/login', '/admin/login')->name('login');
+
+Route::get('/student/login', [AuthController::class, 'showLogin'])->name('student.login');
+Route::post('/student/login', [AuthController::class, 'login'])->name('student.login.attempt');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::redirect('/', '/admin/dashboard')->name('home');
+Route::middleware(['auth', 'role:admin'])->prefix('legacy-admin')->name('admin.')->group(function () {
+    Route::redirect('/', '/legacy-admin/dashboard')->name('home');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('students', StudentController::class)->except(['create', 'show', 'edit']);
     Route::resource('questions', QuestionController::class)->except(['create', 'show', 'edit']);
