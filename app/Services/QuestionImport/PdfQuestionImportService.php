@@ -136,6 +136,7 @@ class PdfQuestionImportService
      */
     public function importToDatabase(array $questions, array $options): array
     {
+        $options['source_type'] = 'pdf';
         $options['allow_missing_correct_answer'] = true;
 
         return app(QuestionImportPersister::class)->import($questions, $options);

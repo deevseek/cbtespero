@@ -154,7 +154,7 @@ class GoogleFormImportService
      */
     public function importToDatabase(array $questions, array $options): array
     {
-        $options['source'] = 'google_form';
+        $options['source_type'] = 'google_form';
         $options['allow_missing_correct_answer'] = true;
         $options['allow_partial_options'] = true;
         $options['status'] = 'draft';

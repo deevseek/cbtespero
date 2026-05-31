@@ -11,22 +11,36 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ListQuestions extends ListRecords
 {
     protected static string $resource = QuestionResource::class;
 
-    protected static ?string $title = 'Bank Soal';
+    protected static ?string $title = 'Bank Soal - Semua Soal';
 
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('batch_import')
+                ->label('Batch Import')
+                ->url(QuestionResource::getUrl('index'))
+                ->icon('heroicon-m-folder'),
+            Actions\Action::make('semua_soal')
+                ->label('Semua Soal')
+                ->disabled()
+                ->color('gray'),
             $this->getImportAction(),
             Actions\CreateAction::make()
                 ->label('Buat Soal Baru')
                 ->icon('heroicon-m-plus'),
         ];
+    }
+
+    public function getImportActionForBatchPage(): Actions\Action
+    {
+        return $this->getImportAction();
     }
 
     private function getImportAction(): Actions\Action
@@ -76,7 +90,7 @@ class ListQuestions extends ListRecords
                     ->maxLength(255),
                 Forms\Components\TextInput::make('kelas')
                     ->label('Kelas')
-                    ->helperText('Disimpan jika kolom kelas tersedia pada tabel questions.')
+                    ->helperText('Contoh: X, XI, XII, atau nama kelas sesuai data sekolah.')
                     ->maxLength(255),
                 Forms\Components\Select::make('tingkat_kesulitan')
                     ->label('Kesulitan default')
@@ -88,11 +102,12 @@ class ListQuestions extends ListRecords
                     ->default('sedang')
                     ->required(),
                 Forms\Components\TextInput::make('bobot_nilai')
-                    ->label('Bobot default')
+                    ->label('Nilai per Soal')
                     ->numeric()
                     ->minValue(1)
                     ->default(1)
-                    ->required(),
+                    ->required()
+                    ->helperText('Digunakan sebagai nilai/poin default untuk setiap soal yang berhasil diimport.'),
                 Forms\Components\Select::make('status')
                     ->label('Status')
                     ->options([
@@ -118,18 +133,26 @@ class ListQuestions extends ListRecords
                 $service = app(GoogleFormImportService::class);
                 $formId = $service->extractFormIdFromUrl((string) ($data['google_form_url'] ?? ''));
                 $summary = $service->normalizeQuestionsWithSummary($service->fetchFormQuestions($formId));
+                $options['source_name'] = 'Google Form '.Str::limit($formId, 16, '');
+                $options['source_url'] = (string) ($data['google_form_url'] ?? '');
+                $options['pre_failed_questions'] = $summary['failed'];
                 $result = $service->importToDatabase($summary['questions'], $options);
                 $result['ignored_identity'] = $summary['ignored_identity'];
-                $result['failed'] += $summary['failed'];
                 $result['source'] = 'google_form';
             } elseif ($method === 'pdf') {
                 $service = app(PdfQuestionImportService::class);
-                $questions = $service->parseFile($this->resolveUploadedPath($data['pdf_file'] ?? null));
+                $pdfPath = $this->resolveUploadedPath($data['pdf_file'] ?? null);
+                $options['original_filename'] = basename($this->uploadedStoragePath($data['pdf_file'] ?? null));
+                $options['source_name'] = $options['original_filename'];
+                $questions = $service->parseFile($pdfPath);
                 $result = $service->importToDatabase($questions, $options);
                 $result['source'] = 'pdf';
             } elseif ($method === 'word') {
                 $service = app(WordQuestionImportService::class);
-                $questions = $service->parseFile($this->resolveUploadedPath($data['word_file'] ?? null));
+                $wordPath = $this->resolveUploadedPath($data['word_file'] ?? null);
+                $options['original_filename'] = basename($this->uploadedStoragePath($data['word_file'] ?? null));
+                $options['source_name'] = $options['original_filename'];
+                $questions = $service->parseFile($wordPath);
                 $result = $service->importToDatabase($questions, $options);
             } else {
                 throw new \InvalidArgumentException('Metode import tidak valid.');
@@ -161,7 +184,15 @@ class ListQuestions extends ListRecords
             'tingkat_kesulitan' => $data['tingkat_kesulitan'] ?? 'sedang',
             'bobot_nilai' => $data['bobot_nilai'] ?? 1,
             'status' => $data['status'] ?? 'draft',
+            'source_url' => $data['google_form_url'] ?? null,
         ];
+    }
+
+    private function uploadedStoragePath(mixed $uploadedFile): string
+    {
+        $path = is_array($uploadedFile) ? reset($uploadedFile) : $uploadedFile;
+
+        return is_string($path) ? $path : '';
     }
 
     private function resolveUploadedPath(mixed $uploadedFile): string
