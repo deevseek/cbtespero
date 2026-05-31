@@ -68,6 +68,10 @@ class ExamResource extends Resource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ListExams::route('/'), 'create' => Pages\CreateExam::route('/create'), 'edit' => Pages\EditExam::route('/{record}/edit')];
+        return [
+            'index' => Pages\ListExams::route('/'),
+            'create' => Pages\CreateExam::route('/create'),
+            'edit' => Pages\EditExam::route('/{record}/edit'),
+        ];
     }
 }
