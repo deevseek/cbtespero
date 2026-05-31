@@ -6,6 +6,7 @@ use App\Filament\Resources\ExamResource\Pages;
 use App\Models\Exam;
 use Filament\Forms;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
@@ -25,7 +26,7 @@ class ExamResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Forms\Components\Section::make('Data Ujian')->schema([
+            Section::make('Data Ujian')->schema([
                 Forms\Components\TextInput::make('nama_ujian')->label('Nama Ujian')->required(),
                 Forms\Components\TextInput::make('mata_pelajaran')->label('Mata Pelajaran')->required(),
                 Forms\Components\TextInput::make('kelas')->label('Kelas')->required(),
@@ -45,7 +46,7 @@ class ExamResource extends Resource
                 ])->required(),
                 Forms\Components\TextInput::make('token')->label('Token')->maxLength(5)->helperText('Token lama tetap dipertahankan untuk kompatibilitas.'),
             ])->columns(2),
-            Forms\Components\Section::make('Keamanan CBT')->relationship('securitySetting')->schema([
+            Section::make('Keamanan CBT')->relationship('securitySetting')->schema([
                 Forms\Components\Toggle::make('require_fullscreen')->label('Wajib Fullscreen')->default(true),
                 Forms\Components\Toggle::make('block_screenshot')->label('Blok Screenshot')->default(true),
                 Forms\Components\Toggle::make('device_binding')->label('Kunci Perangkat')->default(true),
