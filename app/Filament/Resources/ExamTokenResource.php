@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ExamTokenResource\Pages;
 use App\Models\ExamToken;
+use Illuminate\Support\Str;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -28,12 +29,18 @@ class ExamTokenResource extends Resource
                 ->relationship('exam', 'nama_ujian')
                 ->searchable()
                 ->preload()
+                ->createOptionForm(ExamResource::examDetailsFormComponents())
+                ->createOptionModalHeading('Buat Ujian Baru')
+                ->createOptionAction(fn ($action) => $action->label('Buat Ujian Baru'))
+                ->helperText('Pilih ujian yang sudah ada, atau klik Buat Ujian Baru untuk mengisi data ujian dari halaman ini.')
                 ->required(),
             Forms\Components\TextInput::make('token')
                 ->label('Token')
+                ->default(fn (): string => strtoupper(Str::random(6)))
                 ->required()
                 ->maxLength(50)
-                ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper(trim($state)) : null),
+                ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper(trim($state)) : null)
+                ->helperText('Token otomatis dibuat, tetapi boleh diganti. Berikan token ini ke siswa untuk mulai ujian.'),
             Forms\Components\Toggle::make('is_active')->label('Aktif')->default(true),
             Forms\Components\DateTimePicker::make('expires_at')->label('Kedaluwarsa'),
         ]);
