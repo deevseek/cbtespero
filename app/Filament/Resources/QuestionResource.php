@@ -15,7 +15,7 @@ class QuestionResource extends Resource
     protected static ?string $model = Question::class;
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationLabel = 'Bank Soal';
-    protected static ?string $navigationGroup = 'AKADEMIK';
+    protected static string | \UnitEnum | null $navigationGroup = 'AKADEMIK';
     protected static ?int $navigationSort = 3;
     protected static ?string $modelLabel = 'Soal';
     protected static ?string $pluralModelLabel = 'Bank Soal';

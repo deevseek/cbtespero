@@ -17,7 +17,7 @@ class ExamResource extends Resource
     protected static ?string $model = Exam::class;
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-academic-cap';
     protected static ?string $navigationLabel = 'Ujian';
-    protected static ?string $navigationGroup = 'AKADEMIK';
+    protected static string | \UnitEnum | null $navigationGroup = 'AKADEMIK';
     protected static ?int $navigationSort = 1;
     protected static ?string $modelLabel = 'Ujian';
     protected static ?string $pluralModelLabel = 'Ujian';
