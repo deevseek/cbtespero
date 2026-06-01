@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class ExamSessionController extends Controller
@@ -166,6 +167,15 @@ class ExamSessionController extends Controller
                 ]);
             }
         }
+
+        Log::info('[EXAM VIOLATION]', [
+            'student_id' => $student->id,
+            'exam_id' => $exam->id,
+            'type' => $type,
+            'message' => $message,
+            'violation_count' => $violationCount,
+            'action' => $action,
+        ]);
 
         return response()->json([
             'success' => true,
