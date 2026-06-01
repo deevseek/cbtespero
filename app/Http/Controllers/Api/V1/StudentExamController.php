@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\ExamViolationLogged;
+use App\Events\StudentAnswerSaved;
+use App\Events\StudentExamStarted;
+use App\Events\StudentHeartbeatUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\ExamAnswer;
@@ -12,6 +16,7 @@ use App\Models\ExamResult;
 use App\Models\ExamToken;
 use App\Models\Question;
 use App\Models\StudentDevice;
+use App\Services\ExamResultScoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,15 +57,17 @@ class StudentExamController extends Controller
             $result = ExamResult::firstOrNew(['exam_id' => $exam->id, 'student_id' => $student->id]);
             $result->fill([
                 'status' => 'sedang_mengerjakan', 'started_at' => $result->started_at ?: now(), 'server_started_at' => $result->server_started_at ?: now(),
-                'server_ends_at' => $result->server_ends_at ?: now()->addMinutes($exam->durasi), 'last_heartbeat_at' => now(),
+                'server_ends_at' => $this->deadlineFor($exam, $result->started_at ?: now()), 'last_heartbeat_at' => now(),
                 'session_uuid' => $result->session_uuid ?: (string) Str::uuid(), 'device_id' => $data['device_id'], 'device_name' => $data['device_name'] ?? null,
-                'platform' => $data['platform'] ?? null, 'app_version' => $data['app_version'] ?? null, 'ip_address' => $request->ip(),
+                'platform' => $data['platform'] ?? null, 'app_version' => $data['app_version'] ?? null, 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(),
             ])->save();
             StudentDevice::updateOrCreate(['student_id' => $student->id, 'device_id' => $data['device_id']], ['device_name' => $data['device_name'] ?? null, 'platform' => $data['platform'] ?? null, 'app_version' => $data['app_version'] ?? null, 'last_seen_at' => now(), 'ip_address' => $request->ip(), 'is_active' => true]);
             $this->ensureQuestionSnapshot($exam, $result);
+            $result->forceFill(['total_questions' => $result->answers()->count(), 'answered_questions' => $result->answers()->whereNotNull('jawaban_siswa')->count(), 'remaining_time_seconds' => $result->server_ends_at ? max(0, now()->diffInSeconds($result->server_ends_at, false)) : null])->save();
             ExamLog::create(['exam_result_id' => $result->id, 'student_id' => $student->id, 'exam_id' => $exam->id, 'activity_type' => 'exam_started', 'description' => 'Ujian dimulai melalui API Flutter.', 'ip_address' => $request->ip(), 'device_id' => $data['device_id'], 'logged_at' => now()]);
             return $result;
         });
+        StudentExamStarted::dispatch($result->loadMissing(['student', 'exam']));
         return response()->json(['server_time' => now()->toISOString(), 'session' => $result->fresh('exam.securitySetting')]);
     }
 
@@ -85,7 +92,9 @@ class StudentExamController extends Controller
         abort_unless($result->questionOrders()->where('question_id', $data['question_id'])->exists(), 422, 'Soal tidak termasuk sesi ini.');
         $correct = Question::findOrFail($data['question_id'])->jawaban_benar === $data['jawaban'];
         ExamAnswer::updateOrCreate(['exam_result_id' => $result->id, 'question_id' => $data['question_id']], ['jawaban_siswa' => $data['jawaban'], 'is_correct' => $correct, 'answered_at' => now()]);
-        return response()->json(['ok' => true, 'server_time' => now()->toISOString()]);
+        app(ExamResultScoringService::class)->syncCounters($result->refresh());
+        StudentAnswerSaved::dispatch($result, (int) $data['question_id']);
+        return response()->json(['ok' => true, 'server_time' => now()->toISOString(), 'answered_questions' => $result->answered_questions, 'total_questions' => $result->total_questions]);
     }
 
     public function flag(Request $request, ExamResult $result): JsonResponse
@@ -103,7 +112,8 @@ class StudentExamController extends Controller
         if (in_array($data['type'], ['app_background','app_inactive','app_paused','recent_apps','focus_lost'], true)) $result->increment('app_exit_count');
         if ($data['type'] === 'fullscreen_exit') $result->increment('fullscreen_exit_count');
         $result->refresh();
-        ExamLog::create(['exam_result_id' => $result->id, 'student_id' => $result->student_id, 'exam_id' => $result->exam_id, 'activity_type' => $data['type'], 'description' => $data['description'] ?? 'Pelanggaran anti-cheating terdeteksi.', 'ip_address' => $request->ip(), 'metadata' => $data['metadata'] ?? null, 'device_id' => $data['device_id'] ?? $result->device_id, 'logged_at' => now()]);
+        $log = ExamLog::create(['exam_result_id' => $result->id, 'student_id' => $result->student_id, 'exam_id' => $result->exam_id, 'activity_type' => $data['type'], 'description' => $data['description'] ?? 'Pelanggaran anti-cheating terdeteksi.', 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(), 'metadata' => $data['metadata'] ?? null, 'device_id' => $data['device_id'] ?? $result->device_id, 'logged_at' => now()]);
+        ExamViolationLogged::dispatch($log, $result->logs()->count());
         $this->enforceCheatPolicy($result);
         return response()->json(['ok' => true, 'status' => $result->fresh()->status, 'counts' => ['app_exit' => $result->app_exit_count, 'fullscreen_exit' => $result->fullscreen_exit_count, 'heartbeat_missed' => $result->heartbeat_missed_count]]);
     }
@@ -111,14 +121,19 @@ class StudentExamController extends Controller
     public function heartbeat(Request $request, ExamResult $result): JsonResponse
     {
         $this->authorizeResult($request, $result);
-        $result->update(['last_heartbeat_at' => now(), 'ip_address' => $request->ip()]);
+        if ($result->server_ends_at && now()->greaterThanOrEqualTo($result->server_ends_at)) {
+            app(ExamResultScoringService::class)->finalize($result, 'auto_submit', 'Auto submit karena waktu habis');
+            return response()->json(['ok' => true, 'action' => 'auto_submit', 'server_time' => now()->toISOString(), 'status' => $result->fresh()->status]);
+        }
+        $result->update(['last_heartbeat_at' => now(), 'ip_address' => $request->ip(), 'remaining_time_seconds' => $result->server_ends_at ? max(0, now()->diffInSeconds($result->server_ends_at, false)) : $result->remaining_time_seconds]);
+        StudentHeartbeatUpdated::dispatch($result->fresh(), $result->logs()->count());
         return response()->json(['ok' => true, 'server_time' => now()->toISOString(), 'status' => $result->status]);
     }
 
     public function submit(Request $request, ExamResult $result): JsonResponse
     {
         $this->authorizeResult($request, $result);
-        $this->finalize($result, false);
+        $this->finalize($result, $request->boolean('auto_submit') || ($result->server_ends_at && now()->greaterThanOrEqualTo($result->server_ends_at)));
         return response()->json(['ok' => true, 'result' => $result->fresh()]);
     }
 
@@ -135,7 +150,15 @@ class StudentExamController extends Controller
         abort_if(now()->lt($start) || now()->gt($end), 422, 'Ujian belum dibuka atau sudah berakhir.');
     }
     private function authorizeResult(Request $request, ExamResult $result): void { abort_if($result->student_id !== $request->user()->student?->id, 403, 'Sesi bukan milik siswa.'); }
-    private function ensureOpen(ExamResult $result): void { abort_if($result->status !== 'sedang_mengerjakan' || ($result->server_ends_at && now()->gt($result->server_ends_at)), 423, 'Sesi ujian tidak aktif.'); }
+    private function ensureOpen(ExamResult $result): void
+    {
+        if ($result->server_ends_at && now()->greaterThanOrEqualTo($result->server_ends_at)) {
+            app(ExamResultScoringService::class)->finalize($result, 'auto_submit', 'Auto submit karena waktu habis');
+            abort(423, 'Sesi ujian tidak aktif.');
+        }
+
+        abort_if($result->status !== 'sedang_mengerjakan', 423, 'Sesi ujian tidak aktif.');
+    }
     private function ensureQuestionSnapshot(Exam $exam, ExamResult $result): void
     {
         if ($result->questionOrders()->exists()) return;
@@ -158,8 +181,13 @@ class StudentExamController extends Controller
     }
     private function finalize(ExamResult $result, bool $auto): void
     {
-        $total = max(1, $result->answers()->count());
-        $correct = $result->answers()->where('is_correct', true)->count();
-        $result->update(['nilai' => round(($correct / $total) * 100, 2), 'status' => $auto ? 'auto_submit' : 'selesai', 'submitted_at' => now(), 'auto_submitted_at' => $auto ? now() : $result->auto_submitted_at]);
+        app(ExamResultScoringService::class)->finalize($result, $auto ? 'auto_submit' : 'selesai', $auto ? 'Auto submit' : null);
+    }
+
+    private function deadlineFor(Exam $exam, \Carbon\Carbon $startedAt): \Carbon\Carbon
+    {
+        $durationEnd = $startedAt->copy()->addMinutes((int) $exam->durasi);
+        $examEnd = ($exam->tanggal_ujian && $exam->jam_selesai) ? \Carbon\Carbon::parse($exam->tanggal_ujian.' '.$exam->jam_selesai) : null;
+        return $examEnd && $examEnd->lessThan($durationEnd) ? $examEnd : $durationEnd;
     }
 }

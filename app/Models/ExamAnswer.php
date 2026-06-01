@@ -4,10 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ExamAnswer extends Model
 {
     use HasFactory;
 
     protected $fillable = ['exam_result_id','question_id','jawaban_siswa','is_correct','is_flagged','answered_at'];
+
+    public function question(): BelongsTo { return $this->belongsTo(Question::class); }
+    public function result(): BelongsTo { return $this->belongsTo(ExamResult::class, 'exam_result_id'); }
 }

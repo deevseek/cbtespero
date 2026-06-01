@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Events\ExamViolationLogged;
+use App\Events\StudentAnswerSaved;
+use App\Events\StudentHeartbeatUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\ExamAnswer;
@@ -9,10 +12,10 @@ use App\Models\ExamLog;
 use App\Models\ExamResult;
 use App\Models\Question;
 use App\Models\Student;
+use App\Services\ExamResultScoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
@@ -87,20 +90,41 @@ class ExamSessionController extends Controller
             $answers = $result->answers()->with('question')->get()->shuffle();
         }
 
-        return view('student.exam-room', compact('result', 'answers'));
+        $serverNow = now();
+        $remainingSeconds = $result->server_ends_at ? max(0, $serverNow->diffInSeconds($result->server_ends_at, false)) : ((int) $result->exam->durasi * 60);
+
+        if ($remainingSeconds <= 0) {
+            app(ExamResultScoringService::class)->finalize($result, 'auto_submit', 'Auto submit karena waktu habis');
+            return redirect()->route('student.results')->with('success', 'Waktu ujian habis. Jawaban kamu sudah dikumpulkan otomatis.');
+        }
+
+        return view('student.exam-room', compact('result', 'answers', 'serverNow', 'remainingSeconds'));
     }
 
     public function answer(Request $request, ExamResult $result): JsonResponse
     {
         abort_unless($result->student_id === $this->student()->id, 403);
         abort_if(in_array($result->status, ['selesai', 'auto_submit', 'terkunci'], true), 423, 'Ujian sudah ditutup.');
+        if ($this->timeIsExpired($result)) {
+            app(ExamResultScoringService::class)->finalize($result, 'auto_submit', 'Auto submit karena waktu habis');
+            return response()->json(['ok' => false, 'action' => 'auto_submit', 'message' => 'Waktu ujian habis.'], 423);
+        }
 
         $data = $request->validate(['question_id' => 'required|integer', 'jawaban' => 'required|in:a,b,c,d,e']);
         $answer = ExamAnswer::where('exam_result_id', $result->id)->where('question_id', $data['question_id'])->firstOrFail();
         $correct = Question::findOrFail($data['question_id'])->jawaban_benar === $data['jawaban'];
         $answer->update(['jawaban_siswa' => $data['jawaban'], 'is_correct' => $correct, 'answered_at' => now()]);
 
-        return response()->json(['ok' => true]);
+        $scoring = app(ExamResultScoringService::class);
+        $scoring->syncCounters($result->refresh());
+        StudentAnswerSaved::dispatch($result, (int) $data['question_id']);
+
+        return response()->json([
+            'ok' => true,
+            'answered_questions' => (int) $result->answered_questions,
+            'total_questions' => (int) $result->total_questions,
+            'progress_percent' => $result->total_questions ? (int) round(($result->answered_questions / max(1, $result->total_questions)) * 100) : 0,
+        ]);
     }
 
     public function violation(Request $request, Exam $exam): JsonResponse
@@ -137,7 +161,7 @@ class ExamSessionController extends Controller
             $result->increment('heartbeat_missed_count');
         }
 
-        ExamLog::create([
+        $log = ExamLog::create([
             'exam_result_id' => $result->id,
             'student_id' => $student->id,
             'exam_id' => $exam->id,
@@ -154,6 +178,8 @@ class ExamSessionController extends Controller
         $maxViolations = $this->maxViolationsFor($exam, $type);
         $autoSubmit = $this->autoSubmitEnabled($exam);
         $action = 'warn';
+
+        ExamViolationLogged::dispatch($log, $violationCount);
 
         if ($violationCount >= $maxViolations) {
             $action = $autoSubmit ? 'auto_submit' : 'lock';
@@ -196,9 +222,17 @@ class ExamSessionController extends Controller
         $data = $request->validate([
             'current_question' => ['nullable', 'integer'],
             'remaining_time' => ['nullable', 'integer', 'min:0'],
+            'remaining_seconds' => ['nullable', 'integer', 'min:0'],
+            'answered_questions' => ['nullable', 'integer', 'min:0'],
+            'total_questions' => ['nullable', 'integer', 'min:0'],
             'fullscreen_status' => ['nullable', 'boolean'],
             'visibility_state' => ['nullable', 'string', 'max:30'],
         ]);
+
+        if ($this->timeIsExpired($result)) {
+            app(ExamResultScoringService::class)->finalize($result, 'auto_submit', 'Auto submit karena waktu habis');
+            return response()->json(['success' => true, 'action' => 'auto_submit', 'message' => 'Waktu ujian habis.']);
+        }
 
         $setting = $exam->securitySetting;
         $toleranceSeconds = (int) ($setting?->connection_tolerance_seconds ?: 60);
@@ -208,7 +242,9 @@ class ExamSessionController extends Controller
         $result->forceFill([
             'last_heartbeat_at' => now(),
             'current_question_id' => $data['current_question'] ?? $result->current_question_id,
-            'remaining_time_seconds' => $data['remaining_time'] ?? $result->remaining_time_seconds,
+            'remaining_time_seconds' => $data['remaining_seconds'] ?? $data['remaining_time'] ?? $result->remaining_time_seconds,
+            'answered_questions' => $data['answered_questions'] ?? $result->answered_questions,
+            'total_questions' => $data['total_questions'] ?? $result->total_questions,
             'fullscreen_status' => $data['fullscreen_status'] ?? $result->fullscreen_status,
             'visibility_state' => $data['visibility_state'] ?? $result->visibility_state,
             'ip_address' => $request->ip(),
@@ -234,6 +270,8 @@ class ExamSessionController extends Controller
             ]);
         }
 
+        StudentHeartbeatUpdated::dispatch($result->refresh(), $this->violationCount($result));
+
         return response()->json(['success' => true, 'last_seen' => now()->toIso8601String()]);
     }
 
@@ -246,13 +284,19 @@ class ExamSessionController extends Controller
         ]), $result->exam);
     }
 
-    public function submit(ExamResult $result): RedirectResponse
+    public function submit(Request $request, ExamResult $result): RedirectResponse|JsonResponse
     {
         abort_unless($result->student_id === $this->student()->id, 403);
 
-        $this->submitResult($result, 'selesai');
+        $status = $this->timeIsExpired($result) || $request->boolean('auto_submit') ? 'auto_submit' : 'selesai';
+        $reason = $status === 'auto_submit' ? ($request->input('submit_reason') ?: 'Auto submit karena waktu habis') : null;
+        $this->submitResult($result, $status, $reason);
 
-        return redirect()->route('student.dashboard')->with('success', 'Ujian selesai.');
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'redirect_url' => route('student.results')]);
+        }
+
+        return redirect()->route('student.results')->with('success', 'Ujian selesai.');
     }
 
     private function student(): Student
@@ -305,23 +349,12 @@ class ExamSessionController extends Controller
 
     private function submitResult(ExamResult $result, string $status, ?string $reason = null): void
     {
-        DB::transaction(function () use ($result, $status, $reason): void {
-            $result->refresh();
-            if (in_array($result->status, ['selesai', 'auto_submit'], true)) {
-                return;
-            }
+        app(ExamResultScoringService::class)->finalize($result, $status, $reason);
+    }
 
-            $total = max(1, $result->answers()->count());
-            $correct = $result->answers()->where('is_correct', true)->count();
-
-            $result->update([
-                'nilai' => round(($correct / $total) * 100, 2),
-                'status' => $status,
-                'submitted_at' => now(),
-                'auto_submitted_at' => $status === 'auto_submit' ? now() : $result->auto_submitted_at,
-                'lock_reason' => $reason,
-            ]);
-        });
+    private function timeIsExpired(ExamResult $result): bool
+    {
+        return $result->server_ends_at && now()->greaterThanOrEqualTo($result->server_ends_at);
     }
 
     private function defaultViolationMessage(string $type): string

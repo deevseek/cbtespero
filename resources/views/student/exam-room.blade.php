@@ -4,7 +4,9 @@
 @php
     $exam = $result->exam;
     $answerMap = $result->answers->keyBy('question_id');
-    $endsAtMs = optional($result->server_ends_at)->getTimestamp() ? $result->server_ends_at->getTimestamp() * 1000 : now()->addMinutes((int) $exam->durasi)->getTimestamp() * 1000;
+    $serverNowMs = ($serverNow ?? now())->getTimestamp() * 1000;
+    $remainingSeconds = (int) ($remainingSeconds ?? ($result->server_ends_at ? max(0, now()->diffInSeconds($result->server_ends_at, false)) : ((int) $exam->durasi * 60)));
+    $endsAtMs = $serverNowMs + ($remainingSeconds * 1000);
 @endphp
 
 <div class="space-y-5">
@@ -42,6 +44,16 @@
     <div id="fullscreenWarningBackdrop" class="pointer-events-none fixed inset-0 z-40 hidden bg-slate-950/40 backdrop-blur-sm"></div>
 
     <div id="examContent" class="hidden space-y-5">
+        <div id="studentExamTimer" class="sticky top-3 z-30 rounded-3xl border border-blue-200 bg-blue-600 p-4 text-white shadow-2xl shadow-blue-500/20" data-state="normal">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-xs font-black uppercase tracking-[0.25em] text-blue-100">Sisa Waktu</p>
+                    <p id="studentExamTimerValue" class="text-3xl font-black tabular-nums">{{ gmdate('H:i:s', max(0, $remainingSeconds)) }}</p>
+                </div>
+                <p id="studentExamTimerWarning" class="text-sm font-bold text-blue-50">Timer sinkron dari server. Ujian otomatis submit saat waktu habis.</p>
+            </div>
+        </div>
+
         <div class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold text-blue-900">
             Sistem akan mendeteksi jika peserta meninggalkan halaman ujian. Browser tidak bisa memblokir Alt+Tab, tombol Windows, Ctrl+Alt+Del, atau Task Manager secara penuh; efeknya dideteksi melalui blur/visibilitychange dan dicatat sebagai pelanggaran.
         </div>
@@ -116,8 +128,12 @@
         answerUrl: @json(route('student.exams.answer', $result)),
         violationUrl: @json(route('student.exams.violations', $exam)),
         heartbeatUrl: @json(route('student.exams.heartbeat', $exam)),
-        afterSubmitUrl: @json(route('student.dashboard')),
+        afterSubmitUrl: @json(route('student.results')),
         endsAtMs: {{ $endsAtMs }},
+        serverNowMs: {{ $serverNowMs }},
+        remainingSeconds: {{ $remainingSeconds }},
+        totalQuestions: {{ $answers->count() }},
+        submitUrl: @json(route('student.exams.submit', $result)),
         idleTimeoutMs: 180000,
     };
 </script>

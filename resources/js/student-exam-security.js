@@ -18,6 +18,10 @@ class StudentExamSecurity {
         this.autosaveTimer = null;
         this.idleTimer = null;
         this.devToolsTimer = null;
+        this.countdownTimer = null;
+        this.countdownStartedAt = Date.now();
+        this.initialRemainingSeconds = Number(config.remainingSeconds ?? 0);
+        this.autoSubmitSent = false;
     }
 
     init() {
@@ -28,6 +32,8 @@ class StudentExamSecurity {
         console.log('[EXAM SECURITY] page loaded');
         this.bindStartFullscreen();
         this.bindAnswerButtons();
+        this.initializeAnsweredState();
+        this.renderTimer();
         document.querySelectorAll('form').forEach((form) => form.addEventListener('submit', () => { this.submitting = true; }));
         this.bindSecurityEvents();
     }
@@ -241,6 +247,7 @@ class StudentExamSecurity {
         });
         selectedButton.classList.add('border-blue-500', 'bg-blue-50', 'text-blue-900', 'ring-2', 'ring-blue-200');
         selectedButton.setAttribute('aria-pressed', 'true');
+        selectedButton.closest('article')?.setAttribute('data-answered', 'true');
     }
 
     async flushAnswer(questionId, answer) {
@@ -250,6 +257,11 @@ class StudentExamSecurity {
                 headers: this.headers(),
                 body: JSON.stringify({ question_id: questionId, jawaban: answer }),
             });
+            if (response.status === 423) {
+                const payload = await response.json().catch(() => null);
+                this.handleAutoSubmit(payload?.message || 'Ujian sudah ditutup oleh sistem.');
+                return;
+            }
             if (response.ok) {
                 this.pendingAnswers.delete(questionId);
             }
@@ -428,6 +440,7 @@ class StudentExamSecurity {
         }
 
         this.heartbeatTimer = window.setInterval(() => this.sendHeartbeat(), 10000);
+        this.countdownTimer = window.setInterval(() => this.tickTimer(), 1000);
         this.autosaveTimer = window.setInterval(() => this.flushPendingAnswers(), 10000);
         this.idleTimer = window.setInterval(() => this.checkIdle(), 15000);
         this.devToolsTimer = window.setInterval(() => this.detectDevTools(), 3000);
@@ -439,16 +452,23 @@ class StudentExamSecurity {
         }
 
         try {
-            await fetch(this.config.heartbeatUrl, {
+            const response = await fetch(this.config.heartbeatUrl, {
                 method: 'POST',
                 headers: this.headers(),
                 body: JSON.stringify({
                     current_question: this.currentQuestion,
+                    remaining_seconds: this.remainingTime(),
                     remaining_time: this.remainingTime(),
+                    answered_questions: this.answeredCount(),
+                    total_questions: Number(this.config.totalQuestions || 0),
                     fullscreen_status: Boolean(document.fullscreenElement),
                     visibility_state: document.visibilityState,
                 }),
             });
+            const payload = await response.json().catch(() => null);
+            if (payload?.action === 'auto_submit') {
+                this.handleAutoSubmit(payload.message || 'Waktu ujian habis.');
+            }
         } catch (error) {
             this.reportViolation('connection_lost', 'Koneksi peserta terputus saat ujian berlangsung', {
                 error: error.message,
@@ -513,11 +533,86 @@ class StudentExamSecurity {
     }
 
     remainingTime() {
+        const initial = Number(this.initialRemainingSeconds || 0);
+        if (initial > 0) {
+            const elapsed = Math.floor((Date.now() - this.countdownStartedAt) / 1000);
+            return Math.max(0, initial - elapsed);
+        }
+
         const end = Number(this.config.endsAtMs || 0);
         if (!end) {
             return null;
         }
         return Math.max(0, Math.floor((end - Date.now()) / 1000));
+    }
+
+    tickTimer() {
+        this.renderTimer();
+        if (this.remainingTime() <= 0) {
+            this.submitBecauseTimeExpired();
+        }
+    }
+
+    renderTimer() {
+        const timer = document.getElementById('studentExamTimer');
+        const value = document.getElementById('studentExamTimerValue');
+        const warning = document.getElementById('studentExamTimerWarning');
+        if (!timer || !value) return;
+
+        const seconds = Math.max(0, Number(this.remainingTime() || 0));
+        value.textContent = this.formatSeconds(seconds);
+        timer.classList.remove('bg-blue-600', 'border-blue-200', 'bg-amber-500', 'border-amber-200', 'bg-red-600', 'border-red-200', 'animate-pulse');
+
+        if (seconds <= 60) {
+            timer.classList.add('bg-red-600', 'border-red-200', 'animate-pulse');
+            if (warning) warning.textContent = 'Kurang dari 1 menit. Siapkan submit otomatis.';
+        } else if (seconds <= 300) {
+            timer.classList.add('bg-red-600', 'border-red-200');
+            if (warning) warning.textContent = 'Kurang dari 5 menit. Segera selesaikan ujian.';
+        } else if (seconds <= 600) {
+            timer.classList.add('bg-amber-500', 'border-amber-200');
+            if (warning) warning.textContent = 'Kurang dari 10 menit.';
+        } else {
+            timer.classList.add('bg-blue-600', 'border-blue-200');
+            if (warning) warning.textContent = 'Timer sinkron dari server. Ujian otomatis submit saat waktu habis.';
+        }
+    }
+
+    formatSeconds(seconds) {
+        const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+        const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+        const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    }
+
+    async submitBecauseTimeExpired() {
+        if (this.autoSubmitSent) return;
+        this.autoSubmitSent = true;
+        this.submitting = true;
+        await this.flushPendingAnswers();
+
+        try {
+            const response = await fetch(this.config.submitUrl, {
+                method: 'POST',
+                headers: this.headers(),
+                body: JSON.stringify({ auto_submit: true, submit_reason: 'Auto submit karena waktu habis' }),
+            });
+            const payload = await response.json().catch(() => null);
+            window.location.href = payload?.redirect_url || this.config.afterSubmitUrl;
+        } catch (error) {
+            console.warn('Auto submit gagal, mengalihkan peserta.', error);
+            window.location.href = this.config.afterSubmitUrl;
+        }
+    }
+
+    initializeAnsweredState() {
+        document.querySelectorAll('[data-answer-button][aria-pressed="true"]').forEach((button) => {
+            button.closest('article')?.setAttribute('data-answered', 'true');
+        });
+    }
+
+    answeredCount() {
+        return document.querySelectorAll('article[data-answered="true"]').length;
     }
 
     headers() {

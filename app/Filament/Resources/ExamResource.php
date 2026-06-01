@@ -248,6 +248,7 @@ class ExamResource extends Resource
                 SelectFilter::make('mata_pelajaran')->label('Mapel')->options(fn (): array => Exam::query()->whereNotNull('mata_pelajaran')->distinct()->orderBy('mata_pelajaran')->pluck('mata_pelajaran', 'mata_pelajaran')->all()),
             ])
             ->actions([
+                \Filament\Actions\Action::make('export_report')->label('Export Laporan')->icon('heroicon-m-arrow-down-tray')->color('success')->url(fn (Exam $record): string => route('filament.admin.exams.export', $record))->openUrlInNewTab(),
                 \Filament\Actions\Action::make('regenerate_token')->label('Regenerate Token')->icon('heroicon-m-arrow-path')->color('info')->action(fn (Exam $record) => $record->update(['token' => strtoupper(Str::random(5))])),
                 \Filament\Actions\EditAction::make()->label('Edit'),
             ])

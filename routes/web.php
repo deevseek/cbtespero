@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamController;
+use App\Http\Controllers\Admin\ExamReportExportController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\StudentController;
@@ -20,6 +21,11 @@ Route::get('/student/login', [AuthController::class, 'showLogin'])->name('studen
 Route::post('/student/login', [AuthController::class, 'login'])->name('student.login.attempt');
 Route::post('/student/logout', [AuthController::class, 'logout'])->name('student.logout');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
+
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('filament.admin.')->group(function () {
+    Route::get('/exam-results/export', ExamReportExportController::class)->name('exam-results.export');
+    Route::get('/exams/{exam}/export', ExamReportExportController::class)->name('exams.export');
+});
 
 Route::middleware(['auth', 'role:admin'])->prefix('legacy-admin')->name('admin.')->group(function () {
     Route::redirect('/', '/legacy-admin/dashboard')->name('home');

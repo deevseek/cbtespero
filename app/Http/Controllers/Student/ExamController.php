@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Events\StudentExamStarted;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\ExamAnswer;
@@ -15,6 +16,7 @@ use App\Services\StudentExamService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -121,17 +123,26 @@ class ExamController extends Controller
 
         $result = DB::transaction(function () use ($exam, $student, $request) {
             $result = ExamResult::firstOrNew(['exam_id' => $exam->id, 'student_id' => $student->id]);
+            $startedAt = $result->started_at ?: now('Asia/Jakarta');
+            $deadline = $this->deadlineFor($exam, $startedAt);
+
             $result->fill([
                 'status' => 'sedang_mengerjakan',
-                'started_at' => $result->started_at ?: now('Asia/Jakarta'),
+                'started_at' => $startedAt,
                 'server_started_at' => $result->server_started_at ?: now('Asia/Jakarta'),
-                'server_ends_at' => $result->server_ends_at ?: now('Asia/Jakarta')->addMinutes((int) $exam->durasi),
+                'server_ends_at' => $deadline,
                 'last_heartbeat_at' => now('Asia/Jakarta'),
+                'remaining_time_seconds' => max(0, now('Asia/Jakarta')->diffInSeconds($deadline, false)),
                 'session_uuid' => $result->session_uuid ?: (string) Str::uuid(),
                 'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
             ])->save();
 
             $this->ensureQuestionSnapshot($exam, $result);
+            $result->forceFill([
+                'total_questions' => $result->answers()->count(),
+                'answered_questions' => $result->answers()->whereNotNull('jawaban_siswa')->count(),
+            ])->save();
 
             ExamLog::create([
                 'exam_result_id' => $result->id,
@@ -146,7 +157,26 @@ class ExamController extends Controller
             return $result;
         });
 
+        StudentExamStarted::dispatch($result->loadMissing(['student', 'exam']));
+
         return redirect()->route('student.exams.room', $result);
+    }
+
+
+    private function deadlineFor(Exam $exam, Carbon $startedAt): Carbon
+    {
+        $durationEnd = $startedAt->copy()->addMinutes((int) $exam->durasi);
+        $examEnd = null;
+
+        if ($exam->tanggal_ujian && $exam->jam_selesai) {
+            $examEnd = Carbon::parse($exam->tanggal_ujian.' '.$exam->jam_selesai, 'Asia/Jakarta');
+        }
+
+        if ($examEnd && $examEnd->lessThan($durationEnd)) {
+            return $examEnd;
+        }
+
+        return $durationEnd;
     }
 
     private function authorizeExam(Exam $exam, Student $student, StudentExamService $examService): void

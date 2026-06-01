@@ -34,6 +34,7 @@ class MonitoringUjian extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('export')->label('Export Laporan Lengkap')->icon('heroicon-m-arrow-down-tray')->color('success')->url(fn (): string => route('filament.admin.exam-results.export'))->openUrlInNewTab(),
             Action::make('refresh')->label('Refresh')->icon('heroicon-m-arrow-path')->color('primary')->action(fn (): null => null),
         ];
     }
@@ -46,7 +47,9 @@ class MonitoringUjian extends Page implements HasTable
             ->defaultSort('updated_at', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('student.nama')->label('Siswa')->placeholder('-')->searchable()->sortable()->weight('semibold'),
+                Tables\Columns\TextColumn::make('student.nis')->label('NIS')->placeholder('-')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('student.kelas')->label('Kelas')->badge()->placeholder('-')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('exam.nama_ujian')->label('Ujian')->placeholder('-')->searchable()->sortable()->toggleable(),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()->color(fn (?string $state, ExamResult $record): string => $this->statusColor($state, $record))->formatStateUsing(fn (?string $state, ExamResult $record): string => $this->statusLabel($state, $record)),
                 Tables\Columns\ViewColumn::make('progress_percent')->label('Progress')->view('filament.tables.columns.progress-bar')->state(function (ExamResult $record): int {
                     $total = max(1, (int) ($record->answers_count ?? 0));
@@ -60,7 +63,9 @@ class MonitoringUjian extends Page implements HasTable
                     $seconds = max(0, now()->diffInSeconds($record->server_ends_at, false));
                     return gmdate('H:i:s', $seconds);
                 })->badge()->color(fn (ExamResult $record): string => $record->server_ends_at && now()->greaterThan($record->server_ends_at) ? 'danger' : 'success'),
+                Tables\Columns\TextColumn::make('answered_count')->label('Terjawab')->state(fn (ExamResult $record): string => ((int) ($record->answered_count ?? $record->answered_questions)).' / '.max(1, (int) ($record->answers_count ?? $record->total_questions)))->alignCenter(),
                 Tables\Columns\TextColumn::make('violation_logs_count')->label('Pelanggaran')->badge()->state(fn (ExamResult $record): string => (string) ($record->violation_logs_count ?? 0))->color(fn (ExamResult $record): string => ($record->violation_logs_count ?? 0) >= 3 ? 'danger' : (($record->violation_logs_count ?? 0) > 0 ? 'warning' : 'success')),
+                Tables\Columns\TextColumn::make('nilai')->label('Nilai')->numeric(2)->placeholder('-')->sortable(),
                 Tables\Columns\TextColumn::make('last_heartbeat_at')->label('Last Seen')->since()->dateTime('d M Y H:i:s')->placeholder('-')->sortable(),
                 Tables\Columns\TextColumn::make('device_info')->label('Device/IP')->state(fn (ExamResult $record): string => collect([$record->device_name ?: $record->platform, $record->device_id, $record->ip_address, $record->user_agent])->filter()->join(' / ') ?: '-')->limit(70)->wrap()->searchable(query: fn (Builder $query, string $search): Builder => $query->where('device_name', 'like', "%{$search}%")->orWhere('device_id', 'like', "%{$search}%")->orWhere('ip_address', 'like', "%{$search}%")),
             ])
