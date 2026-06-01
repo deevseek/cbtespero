@@ -53,6 +53,11 @@ class ExamController extends Controller
             return back()->withErrors(['token_'.$exam->id => 'Token ujian tidak valid.'])->withInput();
         }
 
+        ExamResult::firstOrCreate(
+            ['exam_id' => $exam->id, 'student_id' => $student->id],
+            ['status' => 'belum_mulai']
+        );
+
         session()->put($this->tokenSessionKey($exam), true);
 
         return redirect()->route('student.exams.start', $exam);
@@ -118,10 +123,10 @@ class ExamController extends Controller
             $result = ExamResult::firstOrNew(['exam_id' => $exam->id, 'student_id' => $student->id]);
             $result->fill([
                 'status' => 'sedang_mengerjakan',
-                'started_at' => $result->started_at ?: now(),
-                'server_started_at' => $result->server_started_at ?: now(),
-                'server_ends_at' => $result->server_ends_at ?: now()->addMinutes((int) $exam->durasi),
-                'last_heartbeat_at' => now(),
+                'started_at' => $result->started_at ?: now('Asia/Jakarta'),
+                'server_started_at' => $result->server_started_at ?: now('Asia/Jakarta'),
+                'server_ends_at' => $result->server_ends_at ?: now('Asia/Jakarta')->addMinutes((int) $exam->durasi),
+                'last_heartbeat_at' => now('Asia/Jakarta'),
                 'session_uuid' => $result->session_uuid ?: (string) Str::uuid(),
                 'ip_address' => $request->ip(),
             ])->save();
@@ -135,7 +140,7 @@ class ExamController extends Controller
                 'activity_type' => 'exam_started',
                 'description' => 'Ujian dimulai melalui portal siswa.',
                 'ip_address' => $request->ip(),
-                'logged_at' => now(),
+                'logged_at' => now('Asia/Jakarta'),
             ]);
 
             return $result;

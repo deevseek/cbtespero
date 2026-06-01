@@ -6,6 +6,7 @@ use App\Filament\Resources\ExamResource\Pages;
 use App\Models\Exam;
 use App\Models\Question;
 use App\Models\QuestionImport;
+use App\Services\ExamStatusService;
 use App\Services\QuestionImport\GoogleFormImportService;
 use App\Services\QuestionImport\PdfQuestionImportService;
 use App\Services\QuestionImport\WordQuestionImportService;
@@ -257,15 +258,9 @@ class ExamResource extends Resource
 
     public static function statusLabel(?string $state): string
     {
-        return match ($state) {
-            'aktif', 'berlangsung' => 'Berlangsung',
-            'selesai' => 'Selesai',
-            'terjadwal' => 'Terjadwal',
-            'belum_dimulai' => 'Belum Dimulai',
-            'dibatalkan' => 'Dibatalkan',
-            'draft' => 'Draft',
-            default => filled($state) ? Str::of($state)->replace('_', ' ')->title()->toString() : '-',
-        };
+        $exam = new Exam(['status' => $state]);
+
+        return app(ExamStatusService::class)->getAdminStatus($exam);
     }
 
     public static function statusColor(?string $state): string
