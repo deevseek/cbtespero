@@ -17,20 +17,11 @@
 
     <section class="grid gap-4">
         @forelse($exams as $exam)
-            @php
-                $badge = match($exam->student_status) {
-                    'available' => 'bg-blue-50 text-blue-700 border-blue-100',
-                    'in_progress' => 'bg-amber-50 text-amber-700 border-amber-100',
-                    'finished' => 'bg-green-50 text-green-700 border-green-100',
-                    'missed' => 'bg-red-50 text-red-700 border-red-100',
-                    default => 'bg-slate-50 text-slate-700 border-slate-100',
-                };
-            @endphp
             <article class="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="grid gap-5 xl:grid-cols-[1fr_220px] xl:items-center">
                     <div>
                         <div class="mb-3 flex flex-wrap items-center gap-2">
-                            <span class="rounded-full border px-3 py-1 text-xs font-black {{ $badge }}">{{ $exam->status_label }}</span>
+                            <span class="rounded-full border px-3 py-1 text-xs font-black {{ $exam->status_badge_class ?? 'bg-slate-50 text-slate-700 border-slate-100' }}">{{ $exam->status_label }}</span>
                             @if($exam->requires_token)<span class="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-black text-indigo-700">Pakai token</span>@endif
                             @unless($exam->is_ready)<span class="rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-black text-red-700">Ujian belum siap</span>@endunless
                         </div>

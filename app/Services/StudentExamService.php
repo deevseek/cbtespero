@@ -54,6 +54,7 @@ class StudentExamService
             $exam->setAttribute('student_status', $status);
             $exam->setAttribute('status_label', $this->statusLabel($status));
             $exam->setAttribute('status_color', $this->statusColor($status));
+            $exam->setAttribute('status_badge_class', $this->statusBadgeClass($status));
             $exam->setAttribute('starts_at', $this->startAt($exam));
             $exam->setAttribute('ends_at', $this->endAt($exam));
             $exam->setAttribute('requires_token', $this->requiresToken($exam));
@@ -125,6 +126,17 @@ class StudentExamService
             'finished' => 'green',
             'missed' => 'red',
             default => 'slate',
+        };
+    }
+
+    public function statusBadgeClass(string $status): string
+    {
+        return match ($this->statusColor($status)) {
+            'blue' => 'bg-blue-50 text-blue-700 border-blue-100',
+            'amber' => 'bg-amber-50 text-amber-700 border-amber-100',
+            'green' => 'bg-green-50 text-green-700 border-green-100',
+            'red' => 'bg-red-50 text-red-700 border-red-100',
+            default => 'bg-slate-50 text-slate-700 border-slate-100',
         };
     }
 

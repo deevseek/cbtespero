@@ -60,20 +60,11 @@
             </div>
 
             @forelse($activeExams as $exam)
-                @php
-                    $badge = match($exam->student_status) {
-                        'available' => 'bg-blue-50 text-blue-700 border-blue-100',
-                        'in_progress' => 'bg-amber-50 text-amber-700 border-amber-100',
-                        'finished' => 'bg-green-50 text-green-700 border-green-100',
-                        'missed' => 'bg-red-50 text-red-700 border-red-100',
-                        default => 'bg-slate-50 text-slate-700 border-slate-100',
-                    };
-                @endphp
                 <article class="mb-4 rounded-3xl border border-slate-100 bg-slate-50/70 p-4 last:mb-0">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div class="min-w-0">
                             <div class="mb-2 flex flex-wrap items-center gap-2">
-                                <span class="rounded-full border px-3 py-1 text-xs font-black {{ $badge }}">{{ $exam->status_label }}</span>
+                                <span class="rounded-full border px-3 py-1 text-xs font-black {{ $exam->status_badge_class ?? 'bg-slate-50 text-slate-700 border-slate-100' }}">{{ $exam->status_label }}</span>
                                 @unless($exam->is_ready)<span class="rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-black text-red-700">Ujian belum siap</span>@endunless
                             </div>
                             <h3 class="text-lg font-black text-slate-950">{{ $exam->nama_ujian }}</h3>
