@@ -44,36 +44,9 @@
             <span>Saya sudah membaca dan menyetujui aturan ujian.</span>
         </label>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p id="fullscreen-error" class="hidden text-sm font-semibold text-red-600">Browser tidak mengizinkan fullscreen. Silakan klik tombol Mulai Ujian lagi.</p>
-            <p class="text-sm font-semibold text-slate-500">Pastikan baterai dan koneksi internet stabil sebelum memulai.</p>
-            <button id="begin-exam-button" type="submit" class="rounded-2xl bg-[#2563eb] px-6 py-3 text-sm font-black text-white shadow-sm hover:bg-blue-700">Mulai Ujian dalam Fullscreen</button>
+            <p class="text-sm font-semibold text-slate-500">Fullscreen akan diminta setelah halaman soal final terbuka.</p>
+            <button id="begin-exam-button" type="submit" class="rounded-2xl bg-[#2563eb] px-6 py-3 text-sm font-black text-white shadow-sm hover:bg-blue-700">Lanjut ke Ruang Ujian</button>
         </div>
     </form>
 </div>
 @endsection
-
-@push('scripts')
-<script>
-    document.getElementById('begin-exam-form')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        const error = document.getElementById('fullscreen-error');
-        const button = document.getElementById('begin-exam-button');
-
-        if (!document.getElementById('rules-agreement').checked) {
-            return;
-        }
-
-        try {
-            button.disabled = true;
-            button.textContent = 'Membuka Fullscreen...';
-            await document.documentElement.requestFullscreen();
-            form.submit();
-        } catch (e) {
-            error.classList.remove('hidden');
-            button.disabled = false;
-            button.textContent = 'Mulai Ujian dalam Fullscreen';
-        }
-    });
-</script>
-@endpush

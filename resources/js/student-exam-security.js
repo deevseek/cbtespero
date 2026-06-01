@@ -10,6 +10,9 @@ class StudentExamSecurity {
         this.submitting = false;
         this.warningOpen = false;
         this.devToolsOpen = false;
+        this.examStarted = false;
+        this.securityEnabled = false;
+        this.fullscreenStartedAt = null;
         this.beforeUnloadKey = `cbt_exam_unload_${config.resultId}`;
         this.heartbeatTimer = null;
         this.autosaveTimer = null;
@@ -22,9 +25,57 @@ class StudentExamSecurity {
             return;
         }
 
+        console.log('[EXAM SECURITY] page loaded');
+        this.bindStartFullscreen();
         this.bindAnswerButtons();
         document.querySelectorAll('form').forEach((form) => form.addEventListener('submit', () => { this.submitting = true; }));
         this.bindSecurityEvents();
+    }
+
+    bindStartFullscreen() {
+        const startButton = document.getElementById('startFullscreenExam');
+        const overlay = document.getElementById('examStartOverlay');
+        const examContent = document.getElementById('examContent');
+        const error = document.getElementById('fullscreenStartError');
+
+        if (!startButton || !overlay || !examContent) {
+            this.startExam();
+            return;
+        }
+
+        startButton.addEventListener('click', async () => {
+            try {
+                error?.classList.add('hidden');
+                startButton.disabled = true;
+                startButton.textContent = 'Membuka Fullscreen...';
+                console.log('[EXAM SECURITY] fullscreen requested');
+
+                await document.documentElement.requestFullscreen();
+
+                console.log('[EXAM SECURITY] fullscreen success');
+                overlay.classList.add('hidden');
+                examContent.classList.remove('hidden');
+                this.startExam();
+            } catch (errorObject) {
+                console.warn('[EXAM SECURITY] fullscreen failed', errorObject);
+                error?.classList.remove('hidden');
+                startButton.disabled = false;
+                startButton.textContent = 'Mulai Ujian dalam Fullscreen';
+            }
+        });
+    }
+
+    startExam() {
+        if (this.examStarted) {
+            return;
+        }
+
+        this.examStarted = true;
+        this.securityEnabled = true;
+        this.fullscreenStartedAt = Date.now();
+        this.lastActivityAt = Date.now();
+        console.log('[EXAM SECURITY] examStarted=true');
+
         this.detectReloadReturn();
         this.startTimers();
         this.sendHeartbeat();
@@ -43,6 +94,10 @@ class StudentExamSecurity {
 
     bindSecurityEvents() {
         document.addEventListener('visibilitychange', () => {
+            if (!this.canProcessSecurityEvent()) {
+                return;
+            }
+
             if (document.hidden) {
                 this.reportViolation('tab_switch', 'Siswa meninggalkan tab ujian', {
                     visibility_state: document.visibilityState,
@@ -52,6 +107,10 @@ class StudentExamSecurity {
         });
 
         window.addEventListener('blur', () => {
+            if (!this.canProcessSecurityEvent()) {
+                return;
+            }
+
             this.reportViolation('window_blur', 'Browser kehilangan fokus, kemungkinan siswa pindah aplikasi', {
                 visibility_state: document.visibilityState,
                 fullscreen: Boolean(document.fullscreenElement),
@@ -60,21 +119,30 @@ class StudentExamSecurity {
 
         window.addEventListener('focus', () => {
             this.markActivity();
-            this.sendHeartbeat();
+            if (this.examStarted) {
+                this.sendHeartbeat();
+            }
         });
 
         document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement && !this.submitting) {
-                this.reportViolation('exit_fullscreen', 'Siswa keluar dari mode fullscreen', {
-                    visibility_state: document.visibilityState,
-                    fullscreen: false,
-                });
+            console.log('[EXAM SECURITY] fullscreenchange', document.fullscreenElement);
+            if (!this.canProcessSecurityEvent() || this.submitting) {
+                return;
+            }
+
+            if (!document.fullscreenElement) {
+                console.log('[EXAM SECURITY] exit fullscreen detected');
+                this.handleExitFullscreen();
             }
         });
 
         document.addEventListener('keydown', (event) => this.handleKeydown(event), true);
 
         document.addEventListener('contextmenu', (event) => {
+            if (!this.canReportViolation()) {
+                return;
+            }
+
             event.preventDefault();
             event.stopPropagation();
             this.reportViolation('right_click', 'Siswa mencoba klik kanan', { x: event.clientX, y: event.clientY });
@@ -82,6 +150,10 @@ class StudentExamSecurity {
 
         ['copy', 'paste', 'cut'].forEach((eventName) => {
             document.addEventListener(eventName, (event) => {
+                if (!this.canReportViolation()) {
+                    return;
+                }
+
                 event.preventDefault();
                 event.stopPropagation();
                 this.reportViolation('clipboard', 'Siswa mencoba copy/paste/cut', { action: eventName });
@@ -93,9 +165,10 @@ class StudentExamSecurity {
         });
 
         window.addEventListener('beforeunload', (event) => {
-            if (this.submitting) {
+            if (!this.examStarted || this.submitting) {
                 return undefined;
             }
+
             sessionStorage.setItem(this.beforeUnloadKey, new Date().toISOString());
             event.preventDefault();
             event.returnValue = '';
@@ -103,8 +176,28 @@ class StudentExamSecurity {
         });
     }
 
+    canProcessSecurityEvent() {
+        if (!this.canReportViolation()) {
+            return false;
+        }
+
+        if (this.fullscreenStartedAt && Date.now() - this.fullscreenStartedAt < 1500) {
+            return false;
+        }
+
+        return true;
+    }
+
+    canReportViolation() {
+        return this.examStarted && this.securityEnabled;
+    }
+
     handleKeydown(event) {
         this.markActivity();
+
+        if (!this.canProcessSecurityEvent()) {
+            return;
+        }
 
         const key = event.key || '';
         const normalized = key.toLowerCase();
@@ -171,11 +264,28 @@ class StudentExamSecurity {
         });
     }
 
-    async reportViolation(type, message, meta = {}) {
+    async handleExitFullscreen() {
+        const payload = await this.reportViolation('exit_fullscreen', 'Siswa keluar dari mode fullscreen', {
+            visibility_state: document.visibilityState,
+            fullscreen: false,
+        }, false);
+
+        if (payload?.action === 'auto_submit' || payload?.action === 'lock') {
+            return;
+        }
+
+        this.showFullscreenWarning(payload?.violation_count || 1, payload?.max_violations || 3);
+    }
+
+    async reportViolation(type, message, meta = {}, showModal = true) {
+        if (!this.canReportViolation()) {
+            return null;
+        }
+
         const now = Date.now();
         const throttleKey = `${type}:${meta.key || meta.action || ''}`;
         if (now - (this.lastViolationAt.get(throttleKey) || 0) < 2000) {
-            return;
+            return null;
         }
         this.lastViolationAt.set(throttleKey, now);
 
@@ -198,18 +308,23 @@ class StudentExamSecurity {
 
             if (response.status === 423) {
                 this.handleAutoSubmit('Ujian sudah ditutup oleh sistem.');
-                return;
+                return { action: 'auto_submit' };
             }
 
             const payload = await response.json();
             if (payload.action === 'auto_submit' || payload.action === 'lock') {
                 this.handleAutoSubmit(payload.message || 'Ujian otomatis dikumpulkan karena melebihi batas pelanggaran.');
-                return;
+                return payload;
             }
 
-            this.showWarning(payload.violation_count, payload.max_violations, message, payload.action);
+            if (showModal) {
+                this.showWarning(payload.violation_count, payload.max_violations, message, payload.action);
+            }
+
+            return payload;
         } catch (error) {
             console.warn('Gagal mengirim log pelanggaran anti-cheat.', error);
+            return null;
         }
     }
 
@@ -222,6 +337,57 @@ class StudentExamSecurity {
         `;
 
         this.modal(title, html, 'Saya Mengerti');
+    }
+
+    showFullscreenWarning(count, max) {
+        const backdrop = document.getElementById('fullscreenWarningBackdrop');
+        backdrop?.classList.remove('hidden');
+        this.warningOpen = true;
+
+        const html = `
+            <p class="text-slate-700">Ujian wajib dikerjakan dalam mode fullscreen. Aktivitas ini telah dicatat sebagai pelanggaran.</p>
+            <p class="mt-3 font-bold text-red-600">Pelanggaran: ${count} / ${max}</p>
+        `;
+
+        if (window.Swal) {
+            window.Swal.fire({
+                title: 'Anda Keluar dari Fullscreen',
+                html,
+                icon: 'warning',
+                confirmButtonText: 'Kembali ke Fullscreen',
+                confirmButtonColor: '#2563eb',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                preConfirm: async () => {
+                    try {
+                        await this.returnToFullscreen();
+                    } catch (error) {
+                        window.Swal.showValidationMessage('Gagal kembali ke fullscreen. Klik tombol lagi.');
+                        return false;
+                    }
+
+                    return true;
+                },
+            }).then((result) => {
+                if (result.isConfirmed && document.fullscreenElement) {
+                    this.hideFullscreenWarning();
+                }
+            });
+            return;
+        }
+
+        window.alert(`Anda Keluar dari Fullscreen\nUjian wajib dikerjakan dalam mode fullscreen. Aktivitas ini telah dicatat sebagai pelanggaran.\nPelanggaran: ${count} / ${max}`);
+        this.returnToFullscreen().then(() => this.hideFullscreenWarning()).catch(() => window.alert('Gagal kembali ke fullscreen. Klik tombol lagi.'));
+    }
+
+    async returnToFullscreen() {
+        await document.documentElement.requestFullscreen();
+        this.fullscreenStartedAt = Date.now();
+    }
+
+    hideFullscreenWarning() {
+        document.getElementById('fullscreenWarningBackdrop')?.classList.add('hidden');
+        this.warningOpen = false;
     }
 
     showIdleModal() {
@@ -238,7 +404,7 @@ class StudentExamSecurity {
         }, 2500);
     }
 
-    modal(title, html, confirmText, onClose = null) {
+    modal(title, html, confirmText, onClose = null, allowOutsideClick = false) {
         if (window.Swal) {
             window.Swal.fire({
                 title,
@@ -246,7 +412,8 @@ class StudentExamSecurity {
                 icon: title.includes('Otomatis') ? 'error' : 'warning',
                 confirmButtonText: confirmText,
                 confirmButtonColor: '#2563eb',
-                allowOutsideClick: false,
+                allowOutsideClick,
+                allowEscapeKey: false,
             }).then(() => onClose && onClose());
             return;
         }
@@ -256,6 +423,10 @@ class StudentExamSecurity {
     }
 
     startTimers() {
+        if (this.heartbeatTimer || this.autosaveTimer || this.idleTimer || this.devToolsTimer) {
+            return;
+        }
+
         this.heartbeatTimer = window.setInterval(() => this.sendHeartbeat(), 10000);
         this.autosaveTimer = window.setInterval(() => this.flushPendingAnswers(), 10000);
         this.idleTimer = window.setInterval(() => this.checkIdle(), 15000);
@@ -263,6 +434,10 @@ class StudentExamSecurity {
     }
 
     async sendHeartbeat() {
+        if (!this.examStarted) {
+            return;
+        }
+
         try {
             await fetch(this.config.heartbeatUrl, {
                 method: 'POST',
@@ -283,6 +458,10 @@ class StudentExamSecurity {
     }
 
     checkIdle() {
+        if (!this.canReportViolation()) {
+            return;
+        }
+
         if (Date.now() - this.lastActivityAt < this.config.idleTimeoutMs) {
             this.idleReported = false;
             return;
@@ -298,6 +477,10 @@ class StudentExamSecurity {
     }
 
     detectDevTools() {
+        if (!this.canReportViolation()) {
+            return;
+        }
+
         const widthGap = Math.abs(window.outerWidth - window.innerWidth);
         const heightGap = Math.abs(window.outerHeight - window.innerHeight);
         const extremeResize = widthGap > 180 || heightGap > 180;
