@@ -9,7 +9,10 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->call(UserRoleSeeder::class);
+        $this->call([
+            UserRoleSeeder::class,
+            StudentSeeder::class,
+        ]);
 
         Setting::firstOrCreate([], ['nama_aplikasi' => 'Espero CBT']);
     }

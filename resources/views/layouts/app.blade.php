@@ -10,6 +10,14 @@
     @stack('head')
 </head>
 <body class="bg-gray-100 font-sans text-slate-700">
+@php
+    $authenticatedUser = auth()->user();
+    $sessionStudent = session('student_id') ? \App\Models\Student::find(session('student_id')) : null;
+    $isAdmin = $authenticatedUser?->isAdmin() ?? false;
+    $displayName = $authenticatedUser?->name ?? $sessionStudent?->nama ?? 'Siswa';
+    $displayRole = $isAdmin ? 'Administrator' : 'Peserta Ujian';
+    $logoutRoute = $isAdmin ? route('logout') : route('student.logout');
+@endphp
 <div class="min-h-screen" x-data="{ open: true, profileOpen: false }">
     <aside
         class="fixed inset-y-0 left-0 z-40 w-64 min-h-screen bg-indigo-700 text-white transition-transform duration-200"
@@ -17,16 +25,16 @@
     >
         <div class="flex h-full flex-col p-4">
             <div class="mb-6 rounded-2xl bg-indigo-800/60 px-4 py-4">
-                <p class="text-xs uppercase tracking-[0.2em] text-indigo-200">Admin Panel</p>
-                <h1 class="text-2xl font-semibold">Espero CBT</h1>
+                <p class="text-xs uppercase tracking-[0.2em] text-indigo-200">{{ $isAdmin ? 'Admin Panel' : 'Portal Peserta' }}</p>
+                <h1 class="text-2xl font-semibold">CBT Julia</h1>
             </div>
 
             @php
                 $menus = [
                     [
                         'label' => 'Dashboard',
-                        'url' => auth()->user()->isAdmin() ? route('admin.dashboard') : route('student.dashboard'),
-                        'active' => auth()->user()->isAdmin() ? request()->routeIs('admin.dashboard') : request()->routeIs('student.dashboard'),
+                        'url' => $isAdmin ? route('admin.dashboard') : route('student.dashboard'),
+                        'active' => $isAdmin ? request()->routeIs('admin.dashboard') : request()->routeIs('student.dashboard'),
                         'icon' => '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3h16.5M4.5 9.75h15m-15 6h15m-15 6h15" /></svg>',
                     ],
                     [
@@ -83,7 +91,7 @@
             <div class="space-y-1 overflow-y-auto pr-1">
                 <p class="px-3 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-200">Menu</p>
                 @foreach($menus as $menu)
-                    @if(auth()->user()->isAdmin() || $menu['label'] === 'Dashboard')
+                    @if($isAdmin || $menu['label'] === 'Dashboard')
                         <a
                             href="{{ $menu['url'] }}"
                             class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition duration-200 hover:bg-indigo-600 {{ $menu['active'] ? 'bg-indigo-800' : '' }}"
@@ -95,7 +103,7 @@
                 @endforeach
             </div>
 
-            <form action="{{ route('logout') }}" method="post" class="mt-auto pt-5">
+            <form action="{{ $logoutRoute }}" method="post" class="mt-auto pt-5">
                 @csrf
                 <button class="w-full rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold transition duration-200 hover:bg-red-600">
                     Logout
@@ -115,16 +123,16 @@
             <div class="relative" @click.outside="profileOpen = false">
                 <button @click="profileOpen = !profileOpen" class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 transition hover:bg-slate-50">
                     <div class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 font-semibold text-indigo-700">
-                        {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                        {{ strtoupper(substr($displayName, 0, 1)) }}
                     </div>
                     <div class="text-left">
-                        <p class="text-sm font-semibold text-slate-800">{{ auth()->user()->name }}</p>
-                        <p class="text-xs text-slate-500">Administrator</p>
+                        <p class="text-sm font-semibold text-slate-800">{{ $displayName }}</p>
+                        <p class="text-xs text-slate-500">{{ $displayRole }}</p>
                     </div>
                 </button>
 
                 <div x-show="profileOpen" x-transition class="absolute right-0 mt-2 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                    <form action="{{ route('logout') }}" method="post">
+                    <form action="{{ $logoutRoute }}" method="post">
                         @csrf
                         <button class="w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50">Logout</button>
                     </form>

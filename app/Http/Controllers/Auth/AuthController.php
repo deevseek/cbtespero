@@ -3,16 +3,18 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Student;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 class AuthController extends Controller
 {
     public function showLogin(): View
     {
-        return view('auth.login');
+        return view('student.login');
     }
 
     public function login(Request $request): RedirectResponse
@@ -22,21 +24,36 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $credentials['role'] = 'siswa';
-        $credentials['is_active'] = true;
+        $student = Student::query()
+            ->where('username', $credentials['username'])
+            ->orWhere('nis', $credentials['username'])
+            ->first();
 
-        if (Auth::attempt($credentials, true)) {
-            $request->session()->regenerate();
-
-            return redirect()->intended(route('student.dashboard'));
+        if (! $student || ! Hash::check($credentials['password'], $student->password)) {
+            return back()
+                ->withErrors(['login' => 'Username atau password salah.'])
+                ->withInput($request->only('username'));
         }
 
-        return back()->withErrors(['username' => 'Username/password salah.'])->onlyInput('username');
+        if ($student->status !== 'aktif') {
+            return back()
+                ->withErrors(['login' => 'Akun siswa tidak aktif.'])
+                ->withInput($request->only('username'));
+        }
+
+        $request->session()->regenerate();
+        $request->session()->put('student_id', $student->id);
+
+        return redirect()->route('student.dashboard');
     }
 
     public function logout(Request $request): RedirectResponse
     {
-        Auth::logout();
+        if (Auth::check()) {
+            Auth::logout();
+        }
+
+        $request->session()->forget('student_id');
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
