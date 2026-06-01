@@ -23,4 +23,14 @@ class Student extends Model
     {
         return $this->hasMany(ExamResult::class);
     }
+
+    public function results(): HasMany
+    {
+        return $this->examResults();
+    }
+
+    public function examLogs(): HasMany
+    {
+        return $this->hasMany(ExamLog::class);
+    }
 }

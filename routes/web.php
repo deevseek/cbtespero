@@ -6,7 +6,11 @@ use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Student\DashboardController as StudentDashboardController;
+use App\Http\Controllers\Student\ExamController as StudentExamController;
 use App\Http\Controllers\Student\ExamSessionController;
+use App\Http\Controllers\Student\ProfileController as StudentProfileController;
+use App\Http\Controllers\Student\ResultController as StudentResultController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/login');
@@ -34,8 +38,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('legacy-admin')->name('admin.'
 });
 
 Route::middleware('student.auth')->prefix('student')->name('student.')->group(function () {
-    Route::get('/dashboard', [ExamSessionController::class, 'dashboard'])->name('dashboard');
-    Route::post('/exams/{exam}/start', [ExamSessionController::class, 'start'])->name('exams.start');
+    Route::get('/dashboard', StudentDashboardController::class)->name('dashboard');
+    Route::get('/exams', [StudentExamController::class, 'index'])->name('exams');
+    Route::post('/exams/{exam}/token', [StudentExamController::class, 'token'])->name('exams.token');
+    Route::get('/exams/{exam}/start', [StudentExamController::class, 'start'])->name('exams.start');
+    Route::post('/exams/{exam}/begin', [StudentExamController::class, 'begin'])->name('exams.begin');
+    Route::get('/results', StudentResultController::class)->name('results');
+    Route::get('/profile', StudentProfileController::class)->name('profile');
     Route::get('/room/{result}', [ExamSessionController::class, 'room'])->name('exams.room');
     Route::post('/room/{result}/answer', [ExamSessionController::class, 'answer'])->name('exams.answer');
     Route::post('/room/{result}/cheating-log', [ExamSessionController::class, 'logCheating'])->name('exams.cheating-log');
