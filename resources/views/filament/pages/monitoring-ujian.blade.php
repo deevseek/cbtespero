@@ -24,4 +24,33 @@
             </div>
         </x-filament::section>
     </div>
+    @push('scripts')
+        <script>
+            window.cbtMonitoring = window.cbtMonitoring || {};
+            window.cbtMonitoring.subscribe = function (examId) {
+                if (!window.Echo || !examId) {
+                    return false;
+                }
+
+                window.Echo.private(`exam.${examId}`)
+                    .listen('.StudentExamStarted', (event) => window.dispatchEvent(new CustomEvent('cbt-monitoring-update', { detail: event })))
+                    .listen('.StudentAnswerSaved', (event) => window.dispatchEvent(new CustomEvent('cbt-monitoring-update', { detail: event })))
+                    .listen('.StudentHeartbeatUpdated', (event) => window.dispatchEvent(new CustomEvent('cbt-monitoring-update', { detail: event })))
+                    .listen('.StudentExamSubmitted', (event) => window.dispatchEvent(new CustomEvent('cbt-monitoring-update', { detail: event })))
+                    .listen('.ExamViolationLogged', (event) => window.dispatchEvent(new CustomEvent('cbt-monitoring-update', { detail: event })));
+
+                return true;
+            };
+
+            @foreach(\App\Models\ExamResult::query()->whereNotNull('exam_id')->distinct()->pluck('exam_id') as $examId)
+                window.cbtMonitoring.subscribe({{ (int) $examId }});
+            @endforeach
+
+            window.addEventListener('cbt-monitoring-update', () => {
+                if (window.Livewire) {
+                    window.Livewire.dispatch('$refresh');
+                }
+            });
+        </script>
+    @endpush
 </x-filament-panels::page>
