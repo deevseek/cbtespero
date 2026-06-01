@@ -10,22 +10,29 @@ use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class StudentExamService
 {
+    public function __construct(private ExamStatusService $statusService)
+    {
+    }
+
     public function examsForStudentQuery(Student $student): Builder
     {
-        $studentClass = $this->normalizeClass($student->kelas ?? $student->class ?? $student->class_level ?? null);
+        $studentClass = $this->statusService->normalizeClass($student->kelas ?? $student->class ?? $student->class_level ?? null);
+        $studentClassCompact = $this->statusService->normalizeClassForCompactCompare($student->kelas ?? $student->class ?? $student->class_level ?? null);
 
         return Exam::query()
             ->with(['securitySetting'])
             ->withCount('questions')
-            ->where('status', 'aktif')
-            ->where(function (Builder $query) use ($studentClass, $student) {
+            ->whereIn('status', ['aktif', 'berlangsung', 'active', 'terjadwal', 'belum_dimulai', 'scheduled', 'selesai'])
+            ->where(function (Builder $query) use ($studentClass, $studentClassCompact, $student) {
                 foreach (['kelas', 'class', 'class_level'] as $field) {
                     if (Schema::hasColumn('exams', $field)) {
-                        $query->orWhereRaw('LOWER(TRIM('.$field.')) = ?', [$studentClass]);
+                        $query->orWhereRaw('UPPER(TRIM('.$field.')) = ?', [$studentClass])
+                            ->orWhereRaw("UPPER(REPLACE(TRIM($field), ' ', '')) = ?", [$studentClassCompact]);
                     }
                 }
 
@@ -47,19 +54,41 @@ class StudentExamService
             ->get()
             ->keyBy('exam_id');
 
-        return $exams->map(function (Exam $exam) use ($results) {
+        return $exams->map(function (Exam $exam) use ($results, $student) {
             $result = $results->get($exam->id);
-            $status = $this->studentStatus($exam, $result);
+            $studentStatus = $this->statusService->getStudentStatus($exam, $student, $result);
+            $status = $studentStatus['key'];
+            $startAt = $this->startAt($exam);
+            $endAt = $this->endAt($exam);
+            $questionTotal = $this->questionCount($exam);
+
             $exam->setAttribute('student_result', $result);
             $exam->setAttribute('student_status', $status);
-            $exam->setAttribute('status_label', $this->statusLabel($status));
-            $exam->setAttribute('status_color', $this->statusColor($status));
+            $exam->setAttribute('student_status_detail', $studentStatus);
+            $exam->setAttribute('student_action', $studentStatus['action']);
+            $exam->setAttribute('student_action_disabled', $studentStatus['disabled']);
+            $exam->setAttribute('status_label', $studentStatus['label']);
+            $exam->setAttribute('status_color', $studentStatus['color']);
             $exam->setAttribute('status_badge_class', $this->statusBadgeClass($status));
-            $exam->setAttribute('starts_at', $this->startAt($exam));
-            $exam->setAttribute('ends_at', $this->endAt($exam));
+            $exam->setAttribute('starts_at', $startAt);
+            $exam->setAttribute('ends_at', $endAt);
             $exam->setAttribute('requires_token', $this->requiresToken($exam));
-            $exam->setAttribute('question_total', $this->questionCount($exam));
-            $exam->setAttribute('is_ready', $this->questionCount($exam) > 0);
+            $exam->setAttribute('question_total', $questionTotal);
+            $exam->setAttribute('is_ready', $questionTotal > 0);
+
+            Log::debug('[STUDENT EXAM STATUS]', [
+                'student_id' => $student->id,
+                'exam_id' => $exam->id,
+                'exam_status' => $exam->status,
+                'exam_date' => $exam->tanggal_ujian ?? $exam->exam_date ?? null,
+                'start_time' => $exam->jam_mulai ?? $exam->start_time ?? null,
+                'end_time' => $exam->jam_selesai ?? $exam->end_time ?? null,
+                'start_at' => $startAt?->toDateTimeString(),
+                'end_at' => $endAt?->toDateTimeString(),
+                'now' => now('Asia/Jakarta')->toDateTimeString(),
+                'calculated_status' => $studentStatus['label'],
+                'action' => $studentStatus['action'],
+            ]);
 
             return $exam;
         });
@@ -91,19 +120,9 @@ class StudentExamService
             return 'in_progress';
         }
 
-        $now = now();
-        $start = $this->startAt($exam);
-        $end = $this->endAt($exam);
+        $student = $result?->student ?: new Student();
 
-        if ($start && $now->lt($start)) {
-            return 'upcoming';
-        }
-
-        if ($end && $now->gt($end)) {
-            return 'missed';
-        }
-
-        return 'available';
+        return $this->statusService->getStudentStatus($exam, $student, $result)['key'];
     }
 
     public function statusLabel(string $status): string
@@ -114,6 +133,7 @@ class StudentExamService
             'in_progress' => 'Sedang Berlangsung',
             'finished' => 'Selesai',
             'missed' => 'Terlewat',
+            'not_ready' => 'Ujian Belum Siap',
             default => 'Tidak Diketahui',
         };
     }
@@ -124,7 +144,7 @@ class StudentExamService
             'available' => 'blue',
             'in_progress' => 'amber',
             'finished' => 'green',
-            'missed' => 'red',
+            'missed', 'not_ready' => 'red',
             default => 'slate',
         };
     }
@@ -142,41 +162,17 @@ class StudentExamService
 
     public function startAt(Exam $exam): ?Carbon
     {
-        if (isset($exam->start_at) && $exam->start_at) {
-            return Carbon::parse($exam->start_at);
-        }
-
-        if (isset($exam->start_time) && $exam->start_time) {
-            return Carbon::parse($exam->start_time);
-        }
-
-        if ($exam->tanggal_ujian && $exam->jam_mulai) {
-            return Carbon::parse($exam->tanggal_ujian.' '.$exam->jam_mulai);
-        }
-
-        return null;
+        return $this->statusService->getExamStartAt($exam);
     }
 
     public function endAt(Exam $exam): ?Carbon
     {
-        if (isset($exam->finish_at) && $exam->finish_at) {
-            return Carbon::parse($exam->finish_at);
-        }
-
-        if (isset($exam->end_time) && $exam->end_time) {
-            return Carbon::parse($exam->end_time);
-        }
-
-        if ($exam->tanggal_ujian && $exam->jam_selesai) {
-            return Carbon::parse($exam->tanggal_ujian.' '.$exam->jam_selesai);
-        }
-
-        return $this->startAt($exam)?->copy()->addMinutes((int) $exam->durasi);
+        return $this->statusService->getExamEndAt($exam);
     }
 
     public function requiresToken(Exam $exam): bool
     {
-        return filled($exam->token) || $exam->tokens()->where('is_active', true)->exists();
+        return $this->statusService->requiresToken($exam);
     }
 
     public function tokenIsValid(Exam $exam, string $token): bool
@@ -187,18 +183,14 @@ class StudentExamService
             ->where('exam_id', $exam->id)
             ->where('token', $normalized)
             ->where('is_active', true)
-            ->where(fn (Builder $query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->where(fn (Builder $query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now('Asia/Jakarta')))
             ->exists()
             || ($exam->token && strtoupper((string) $exam->token) === $normalized);
     }
 
     public function questionCount(Exam $exam): int
     {
-        if (isset($exam->questions_count)) {
-            return (int) $exam->questions_count;
-        }
-
-        return $exam->questions()->count();
+        return $this->statusService->questionCount($exam);
     }
 
     public function hasFallbackQuestionBank(Exam $exam): bool
@@ -206,8 +198,4 @@ class StudentExamService
         return Question::where('mata_pelajaran', $exam->mata_pelajaran)->exists();
     }
 
-    private function normalizeClass(?string $value): string
-    {
-        return strtolower(trim((string) $value));
-    }
 }
