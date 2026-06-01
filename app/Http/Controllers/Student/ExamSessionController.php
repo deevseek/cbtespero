@@ -58,8 +58,12 @@ class ExamSessionController extends Controller
     {
         abort_unless($result->student_id === $this->student()->id, 403);
 
-        $result->load('exam');
-        $answers = $result->answers()->with('question')->get()->shuffle();
+        $result->load('exam.securitySetting');
+        $answers = $result->questionOrders()->with('question')->orderBy('position')->get();
+
+        if ($answers->isEmpty()) {
+            $answers = $result->answers()->with('question')->get()->shuffle();
+        }
 
         return view('student.exam-room', compact('result', 'answers'));
     }
