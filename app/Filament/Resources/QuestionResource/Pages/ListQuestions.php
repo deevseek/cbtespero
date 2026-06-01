@@ -281,23 +281,39 @@ class ListQuestions extends ListRecords
                 return;
             }
 
-            $message = "Import PDF selesai. {$created} soal berhasil diimport";
+            $highlight = (array) ($result['highlight'] ?? []);
+            $highlightAnswers = (int) ($highlight['answers_found'] ?? 0);
+            $highlightUnavailable = $highlightAnswers === 0 && filled($highlight['unavailable_reason'] ?? null);
+            $draftCount = $review;
 
-            if ($failed > 0) {
-                $message .= ", {$failed} soal gagal diproses";
-            }
+            if ($highlightAnswers > 0 && $draftCount === 0 && $failed === 0) {
+                $message = "Import PDF berhasil. {$created} soal berhasil diimport dan {$highlightAnswers} kunci jawaban berhasil dibaca dari highlight kuning.";
+            } elseif ($highlightAnswers > 0) {
+                $message = "Import PDF selesai dengan catatan. {$created} soal berhasil diimport, {$highlightAnswers} kunci jawaban terbaca dari highlight, {$draftCount} soal disimpan sebagai Draft untuk direview.";
 
-            if ($review > 0) {
-                $message .= $failed > 0
-                    ? ", {$review} soal perlu diperiksa"
-                    : " sebagai Draft karena kunci jawaban tidak ditemukan pada teks PDF";
-                $message .= '. Jawaban yang hanya ditandai highlight pada PDF tidak dapat dibaca oleh parser teks. Soal disimpan sebagai Draft untuk direview.';
+                if ($failed > 0) {
+                    $message .= " {$failed} soal gagal diproses.";
+                }
+            } elseif ($highlightUnavailable && $draftCount > 0) {
+                $message = 'Import PDF berhasil, tetapi highlight kuning tidak dapat dibaca di server ini. Soal disimpan sebagai Draft untuk direview.';
             } else {
+                $message = "Import PDF selesai. {$created} soal berhasil diimport";
+
+                if ($failed > 0) {
+                    $message .= ", {$failed} soal gagal diproses";
+                }
+
+                if ($draftCount > 0) {
+                    $message .= $failed > 0
+                        ? ", {$draftCount} soal perlu diperiksa"
+                        : " sebagai Draft karena kunci jawaban tidak ditemukan pada teks PDF";
+                }
+
                 $message .= '.';
             }
 
             $notification = Notification::make()
-                ->title($review > 0 || $failed > 0 ? 'Import PDF selesai dengan catatan' : 'Import PDF berhasil')
+                ->title($draftCount > 0 || $failed > 0 ? 'Import PDF selesai dengan catatan' : 'Import PDF berhasil')
                 ->body($message);
 
             if ($review > 0 || $failed > 0) {
