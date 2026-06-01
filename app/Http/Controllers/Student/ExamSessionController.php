@@ -8,6 +8,7 @@ use App\Models\ExamAnswer;
 use App\Models\ExamLog;
 use App\Models\ExamResult;
 use App\Models\Question;
+use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ class ExamSessionController extends Controller
 {
     public function dashboard(): View
     {
-        $student = auth()->user()->student;
+        $student = $this->student();
         $exams = Exam::where('status', 'aktif')->where('kelas', $student->kelas)->get();
         $results = ExamResult::with('exam')->where('student_id', $student->id)->latest()->paginate(10);
 
@@ -29,7 +30,7 @@ class ExamSessionController extends Controller
         $request->validate(['token' => 'required|string|size:5']);
         abort_if(strtoupper($request->token) !== $exam->token, 422, 'Token salah');
 
-        $student = auth()->user()->student;
+        $student = $this->student();
         $result = ExamResult::firstOrCreate(
             ['exam_id' => $exam->id, 'student_id' => $student->id],
             ['status' => 'sedang_mengerjakan', 'started_at' => now()]
@@ -55,13 +56,18 @@ class ExamSessionController extends Controller
 
     public function room(ExamResult $result): View
     {
+        abort_unless($result->student_id === $this->student()->id, 403);
+
         $result->load('exam');
         $answers = $result->answers()->with('question')->get()->shuffle();
+
         return view('student.exam-room', compact('result', 'answers'));
     }
 
     public function answer(Request $request, ExamResult $result): JsonResponse
     {
+        abort_unless($result->student_id === $this->student()->id, 403);
+
         $data = $request->validate(['question_id' => 'required|integer', 'jawaban' => 'required|in:a,b,c,d,e']);
         $answer = ExamAnswer::where('exam_result_id', $result->id)->where('question_id', $data['question_id'])->firstOrFail();
         $correct = Question::findOrFail($data['question_id'])->jawaban_benar === $data['jawaban'];
@@ -72,6 +78,8 @@ class ExamSessionController extends Controller
 
     public function logCheating(Request $request, ExamResult $result): JsonResponse
     {
+        abort_unless($result->student_id === $this->student()->id, 403);
+
         $data = $request->validate(['type' => 'required|string']);
         if ($data['type'] === 'tab_switch') {
             $result->increment('tab_switch_count');
@@ -99,11 +107,19 @@ class ExamSessionController extends Controller
 
     public function submit(ExamResult $result): RedirectResponse
     {
+        abort_unless($result->student_id === $this->student()->id, 403);
+
         $total = $result->answers()->count();
         $correct = $result->answers()->where('is_correct', true)->count();
         $nilai = $total ? round(($correct / $total) * 100, 2) : 0;
 
         $result->update(['nilai' => $nilai, 'status' => 'selesai', 'submitted_at' => now()]);
+
         return redirect()->route('student.dashboard')->with('success', 'Ujian selesai.');
+    }
+
+    private function student(): Student
+    {
+        return Student::findOrFail(session('student_id'));
     }
 }

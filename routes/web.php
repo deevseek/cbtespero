@@ -14,6 +14,7 @@ Route::redirect('/login', '/admin/login')->name('login');
 
 Route::get('/student/login', [AuthController::class, 'showLogin'])->name('student.login');
 Route::post('/student/login', [AuthController::class, 'login'])->name('student.login.attempt');
+Route::post('/student/logout', [AuthController::class, 'logout'])->name('student.logout');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
 Route::middleware(['auth', 'role:admin'])->prefix('legacy-admin')->name('admin.')->group(function () {
@@ -32,7 +33,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('legacy-admin')->name('admin.'
     Route::post('/config', [ModuleController::class, 'saveConfig'])->name('config.save');
 });
 
-Route::middleware(['auth', 'role:siswa'])->prefix('student')->name('student.')->group(function () {
+Route::middleware('student.auth')->prefix('student')->name('student.')->group(function () {
     Route::get('/dashboard', [ExamSessionController::class, 'dashboard'])->name('dashboard');
     Route::post('/exams/{exam}/start', [ExamSessionController::class, 'start'])->name('exams.start');
     Route::get('/room/{result}', [ExamSessionController::class, 'room'])->name('exams.room');

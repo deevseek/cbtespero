@@ -57,3 +57,13 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Akun Test Siswa CBT Julia
+
+Seeder `StudentSeeder` menyediakan akun siswa yang bisa langsung digunakan di `/student/login` setelah menjalankan `php artisan db:seed`:
+
+| Username | Password |
+| --- | --- |
+| siswa001 | password |
+| siswa002 | password |
+| siswa003 | password |
