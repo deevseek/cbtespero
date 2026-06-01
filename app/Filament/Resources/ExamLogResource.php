@@ -28,6 +28,8 @@ class ExamLogResource extends Resource
             Forms\Components\TextInput::make('student_id')->label('Siswa'),
             Forms\Components\TextInput::make('activity_type')->label('Tipe'),
             Forms\Components\TextInput::make('ip_address')->label('IP'),
+            Forms\Components\Textarea::make('user_agent')->label('User Agent')->columnSpanFull(),
+            Forms\Components\KeyValue::make('metadata')->label('Meta')->columnSpanFull(),
             Forms\Components\DateTimePicker::make('logged_at')->label('Waktu'),
         ]);
     }
@@ -41,7 +43,8 @@ class ExamLogResource extends Resource
                 Tables\Columns\TextColumn::make('activity_type')->label('Tipe')->badge()->formatStateUsing(fn (?string $state): string => self::violationLabel($state))->color(fn (?string $state): string => self::violationColor($state))->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('ip_address')->label('IP')->placeholder('-')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('logged_at')->label('Waktu')->dateTime('d M Y H:i:s')->sortable(),
-                Tables\Columns\TextColumn::make('description')->label('Status/Tindakan')->limit(45)->placeholder('Terdeteksi otomatis'),
+                Tables\Columns\TextColumn::make('description')->label('Pesan')->limit(45)->placeholder('Terdeteksi otomatis'),
+                Tables\Columns\TextColumn::make('user_agent')->label('User Agent')->limit(60)->placeholder('-')->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([\Filament\Actions\EditAction::make()->label('Lihat')])
             ->emptyStateHeading('Belum ada log pelanggaran')
@@ -54,7 +57,16 @@ class ExamLogResource extends Resource
         return match ($state) {
             'fullscreen_exit', 'keluar_fullscreen' => 'Keluar Fullscreen',
             'tab_switch', 'pindah_tab' => 'Pindah Tab',
-            'copy_paste', 'copy paste' => 'Copy Paste',
+            'clipboard', 'copy_paste', 'copy paste' => 'Clipboard',
+            'right_click' => 'Klik Kanan',
+            'forbidden_shortcut' => 'Shortcut Terlarang',
+            'window_blur' => 'Window Blur',
+            'exit_fullscreen' => 'Keluar Fullscreen',
+            'page_reload' => 'Reload Halaman',
+            'devtools' => 'Developer Tools',
+            'idle' => 'Idle',
+            'connection_lost' => 'Koneksi Terputus',
+            'heartbeat_missed' => 'Heartbeat Terputus',
             'face_not_visible', 'wajah_tidak_terlihat' => 'Wajah Tidak Terlihat',
             'suspicious_device', 'suspicious_ip' => 'Device/IP Mencurigakan',
             default => filled($state) ? Str::of($state)->replace('_', ' ')->title()->toString() : '-',

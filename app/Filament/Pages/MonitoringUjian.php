@@ -60,9 +60,9 @@ class MonitoringUjian extends Page implements HasTable
                     $seconds = max(0, now()->diffInSeconds($record->server_ends_at, false));
                     return gmdate('H:i:s', $seconds);
                 })->badge()->color(fn (ExamResult $record): string => $record->server_ends_at && now()->greaterThan($record->server_ends_at) ? 'danger' : 'success'),
-                Tables\Columns\TextColumn::make('pelanggaran')->label('Pelanggaran')->state(fn (ExamResult $record): string => sprintf('App %d · Fullscreen %d · Log %d', $record->app_exit_count ?? 0, $record->fullscreen_exit_count ?? 0, $record->logs_count ?? 0))->wrap(),
+                Tables\Columns\TextColumn::make('violation_logs_count')->label('Pelanggaran')->badge()->state(fn (ExamResult $record): string => (string) ($record->violation_logs_count ?? 0))->color(fn (ExamResult $record): string => ($record->violation_logs_count ?? 0) >= 3 ? 'danger' : (($record->violation_logs_count ?? 0) > 0 ? 'warning' : 'success')),
                 Tables\Columns\TextColumn::make('last_heartbeat_at')->label('Last Seen')->since()->dateTime('d M Y H:i:s')->placeholder('-')->sortable(),
-                Tables\Columns\TextColumn::make('device_info')->label('Device/IP')->state(fn (ExamResult $record): string => collect([$record->device_name ?: $record->platform, $record->device_id, $record->ip_address])->filter()->join(' / ') ?: '-')->wrap()->searchable(query: fn (Builder $query, string $search): Builder => $query->where('device_name', 'like', "%{$search}%")->orWhere('device_id', 'like', "%{$search}%")->orWhere('ip_address', 'like', "%{$search}%")),
+                Tables\Columns\TextColumn::make('device_info')->label('Device/IP')->state(fn (ExamResult $record): string => collect([$record->device_name ?: $record->platform, $record->device_id, $record->ip_address, $record->user_agent])->filter()->join(' / ') ?: '-')->limit(70)->wrap()->searchable(query: fn (Builder $query, string $search): Builder => $query->where('device_name', 'like', "%{$search}%")->orWhere('device_id', 'like', "%{$search}%")->orWhere('ip_address', 'like', "%{$search}%")),
             ])
             ->filters([
                 SelectFilter::make('exam_id')->label('Pilih Ujian')->relationship('exam', 'nama_ujian')->searchable()->preload(),
@@ -70,6 +70,7 @@ class MonitoringUjian extends Page implements HasTable
                 SelectFilter::make('status')->label('Status')->options(['sedang_mengerjakan' => 'Mengerjakan', 'selesai' => 'Selesai', 'terkunci' => 'Pelanggaran', 'auto_submit' => 'Pelanggaran', 'belum_mulai' => 'Belum Mulai']),
             ])
             ->actions([
+                Action::make('view_violations')->label('Detail Log')->icon('heroicon-m-shield-exclamation')->color('warning')->visible(fn (ExamResult $record): bool => ($record->violation_logs_count ?? 0) > 0)->modalHeading('Detail Log Pelanggaran')->modalSubmitAction(false)->modalCancelActionLabel('Tutup')->modalContent(fn (ExamResult $record) => view('filament.pages.monitoring-violations', ['logs' => $this->violationLogs($record)])),
                 Action::make('force_submit')->label('Submit')->icon('heroicon-m-paper-airplane')->color('danger')->requiresConfirmation()->action(fn (ExamResult $record) => $this->forceSubmit($record)),
                 Action::make('unlock')->label('Buka')->icon('heroicon-m-lock-open')->color('success')->requiresConfirmation()->visible(fn (ExamResult $record): bool => filled($record->locked_at) || in_array($record->status, ['terkunci', 'auto_submit'], true))->action(fn (ExamResult $record) => $this->unlock($record)),
             ])
@@ -85,18 +86,18 @@ class MonitoringUjian extends Page implements HasTable
             'running' => ExamResult::query()->where('status', 'sedang_mengerjakan')->count(),
             'finished' => ExamResult::query()->where('status', 'selesai')->count(),
             'not_started' => ExamResult::query()->where(fn (Builder $query) => $query->whereNull('started_at')->orWhere('status', 'belum_mulai'))->count(),
-            'violations' => ExamResult::query()->where(fn (Builder $query) => $query->whereIn('status', ['terkunci', 'auto_submit'])->orWhere('app_exit_count', '>', 0)->orWhere('fullscreen_exit_count', '>', 0))->count(),
+            'violations' => ExamResult::query()->whereHas('logs', fn (Builder $query) => $query->whereIn('activity_type', ['exit_fullscreen', 'tab_switch', 'window_blur', 'forbidden_shortcut', 'right_click', 'clipboard', 'devtools', 'page_reload', 'idle', 'connection_lost', 'heartbeat_missed', 'fullscreen_exit']))->count(),
         ];
     }
 
     protected function getMonitoringQuery(): Builder
     {
-        return ExamResult::query()->with(['exam', 'student'])->withCount(['answers', 'answers as answered_count' => fn (Builder $query) => $query->whereNotNull('jawaban_siswa'), 'logs']);
+        return ExamResult::query()->with(['exam', 'student'])->withCount(['answers', 'answers as answered_count' => fn (Builder $query) => $query->whereNotNull('jawaban_siswa'), 'logs as violation_logs_count' => fn (Builder $query) => $query->whereIn('activity_type', ['exit_fullscreen', 'tab_switch', 'window_blur', 'forbidden_shortcut', 'right_click', 'clipboard', 'devtools', 'page_reload', 'idle', 'connection_lost', 'heartbeat_missed', 'fullscreen_exit'])]);
     }
 
     private function statusLabel(?string $state, ExamResult $record): string
     {
-        if (($record->app_exit_count ?? 0) > 0 || ($record->fullscreen_exit_count ?? 0) > 0 || ($record->logs_count ?? 0) > 0 || in_array($state, ['terkunci', 'auto_submit'], true)) {
+        if (($record->app_exit_count ?? 0) > 0 || ($record->fullscreen_exit_count ?? 0) > 0 || ($record->violation_logs_count ?? 0) > 0 || in_array($state, ['terkunci', 'auto_submit'], true)) {
             return 'Pelanggaran';
         }
 
@@ -110,7 +111,7 @@ class MonitoringUjian extends Page implements HasTable
 
     private function statusColor(?string $state, ExamResult $record): string
     {
-        if (($record->app_exit_count ?? 0) > 0 || ($record->fullscreen_exit_count ?? 0) > 0 || ($record->logs_count ?? 0) > 0 || in_array($state, ['terkunci', 'auto_submit'], true)) {
+        if (($record->app_exit_count ?? 0) > 0 || ($record->fullscreen_exit_count ?? 0) > 0 || ($record->violation_logs_count ?? 0) > 0 || in_array($state, ['terkunci', 'auto_submit'], true)) {
             return 'danger';
         }
 
@@ -120,6 +121,16 @@ class MonitoringUjian extends Page implements HasTable
             'belum_mulai' => 'warning',
             default => 'gray',
         };
+    }
+
+    public function violationLogs(ExamResult $result): \Illuminate\Support\Collection
+    {
+        return $result->logs()
+            ->with(['student', 'exam'])
+            ->whereIn('activity_type', ['exit_fullscreen', 'tab_switch', 'window_blur', 'forbidden_shortcut', 'right_click', 'clipboard', 'devtools', 'page_reload', 'idle', 'connection_lost', 'heartbeat_missed', 'fullscreen_exit'])
+            ->latest('logged_at')
+            ->limit(20)
+            ->get();
     }
 
     public function forceSubmit(ExamResult $result): void

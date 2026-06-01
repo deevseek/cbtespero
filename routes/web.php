@@ -46,6 +46,8 @@ Route::middleware('student.auth')->prefix('student')->name('student.')->group(fu
     Route::get('/results', StudentResultController::class)->name('results');
     Route::get('/profile', StudentProfileController::class)->name('profile');
     Route::get('/room/{result}', [ExamSessionController::class, 'room'])->name('exams.room');
+    Route::post('/exams/{exam}/violations', [ExamSessionController::class, 'violation'])->name('exams.violations');
+    Route::post('/exams/{exam}/heartbeat', [ExamSessionController::class, 'heartbeat'])->name('exams.heartbeat');
     Route::post('/room/{result}/answer', [ExamSessionController::class, 'answer'])->name('exams.answer');
     Route::post('/room/{result}/cheating-log', [ExamSessionController::class, 'logCheating'])->name('exams.cheating-log');
     Route::post('/room/{result}/submit', [ExamSessionController::class, 'submit'])->name('exams.submit');

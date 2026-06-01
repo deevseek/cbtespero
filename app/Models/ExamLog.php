@@ -10,7 +10,7 @@ class ExamLog extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['exam_result_id','student_id','exam_id','activity_type','description','ip_address','metadata','device_id','logged_at'];
+    protected $fillable = ['exam_result_id','student_id','exam_id','activity_type','description','ip_address','user_agent','metadata','device_id','logged_at'];
 
     protected function casts(): array
     {
