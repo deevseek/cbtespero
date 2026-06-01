@@ -1,4 +1,4 @@
-@extends('student.layout', ['title' => 'Instruksi Ujian', 'subtitle' => 'Mulai Ujian'])
+@extends('student.layout', ['title' => 'Aturan Ujian', 'subtitle' => 'Instruksi Ujian'])
 
 @section('content')
 <div class="mx-auto max-w-4xl space-y-6">
@@ -21,19 +21,59 @@
     </section>
 
     <section class="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 shadow-sm sm:p-8">
-        <h2 class="text-2xl font-black text-amber-900">Aturan keamanan ujian</h2>
-        <p class="mt-2 text-sm font-semibold text-amber-800">Dengan menekan tombol mulai, kamu menyetujui aturan pengawasan CBT berikut.</p>
+        <h2 class="text-2xl font-black text-amber-900">Aturan Ujian</h2>
+        <p class="mt-2 text-sm font-semibold text-amber-800">Sistem akan mendeteksi jika peserta meninggalkan halaman ujian. Browser tidak bisa memblokir tombol OS seperti Alt+Tab, tombol Windows, Ctrl+Alt+Del, atau Task Manager secara penuh.</p>
         <div class="mt-5 grid gap-3 md:grid-cols-2">
-            @foreach(['Wajib fullscreen selama mengerjakan', 'Dilarang pindah tab atau membuka aplikasi lain', 'Dilarang keluar dari halaman ujian', 'Aktivitas mencurigakan akan tercatat otomatis', 'Screenshot dan copy/paste diblokir jika didukung browser'] as $rule)
+            @foreach([
+                'Ujian wajib menggunakan fullscreen.',
+                'Dilarang pindah tab atau membuka aplikasi lain.',
+                'Dilarang menekan shortcut keyboard.',
+                'Dilarang copy, paste, dan klik kanan.',
+                'Setiap pelanggaran akan tercatat otomatis.',
+                'Ujian dapat dikumpulkan otomatis jika pelanggaran melewati batas.',
+            ] as $rule)
                 <div class="rounded-2xl bg-white/80 p-4 text-sm font-bold text-amber-900">✓ {{ $rule }}</div>
             @endforeach
         </div>
     </section>
 
-    <form method="post" action="{{ route('student.exams.begin', $exam) }}" class="flex flex-col gap-3 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <form id="begin-exam-form" method="post" action="{{ route('student.exams.begin', $exam) }}" class="space-y-4 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
         @csrf
-        <p class="text-sm font-semibold text-slate-500">Pastikan baterai dan koneksi internet stabil sebelum memulai.</p>
-        <button class="rounded-2xl bg-[#2563eb] px-6 py-3 text-sm font-black text-white shadow-sm hover:bg-blue-700">Saya Mengerti, Mulai Ujian</button>
+        <label class="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-700">
+            <input id="rules-agreement" type="checkbox" class="mt-1 h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" required>
+            <span>Saya sudah membaca dan menyetujui aturan ujian.</span>
+        </label>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p id="fullscreen-error" class="hidden text-sm font-semibold text-red-600">Browser tidak mengizinkan fullscreen. Silakan klik tombol Mulai Ujian lagi.</p>
+            <p class="text-sm font-semibold text-slate-500">Pastikan baterai dan koneksi internet stabil sebelum memulai.</p>
+            <button id="begin-exam-button" type="submit" class="rounded-2xl bg-[#2563eb] px-6 py-3 text-sm font-black text-white shadow-sm hover:bg-blue-700">Mulai Ujian dalam Fullscreen</button>
+        </div>
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.getElementById('begin-exam-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const error = document.getElementById('fullscreen-error');
+        const button = document.getElementById('begin-exam-button');
+
+        if (!document.getElementById('rules-agreement').checked) {
+            return;
+        }
+
+        try {
+            button.disabled = true;
+            button.textContent = 'Membuka Fullscreen...';
+            await document.documentElement.requestFullscreen();
+            form.submit();
+        } catch (e) {
+            error.classList.remove('hidden');
+            button.disabled = false;
+            button.textContent = 'Mulai Ujian dalam Fullscreen';
+        }
+    });
+</script>
+@endpush
