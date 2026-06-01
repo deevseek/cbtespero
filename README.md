@@ -67,3 +67,36 @@ Seeder `StudentSeeder` menyediakan akun siswa yang bisa langsung digunakan di `/
 | siswa001 | password |
 | siswa002 | password |
 | siswa003 | password |
+
+## Perbaikan Cache Laravel di Windows/XAMPP
+
+Project ini menggunakan Laravel 12 dan membutuhkan **PHP 8.2 atau lebih baru**. Jika XAMPP masih memakai PHP lama, Laravel dapat gagal saat merender exception dan menampilkan error seperti `syntax error, unexpected token "="` dari file vendor Laravel. Jangan edit file `vendor`; ganti PHP XAMPP/CLI ke PHP 8.2+.
+
+Jika muncul error seperti berikut:
+
+```text
+rename(C:\xampp\htdocs\cbtespero\bootstrap\cache\ser4B1F.tmp,C:\xampp\htdocs\cbtespero\bootstrap\cache/services.php): Access is denied (code: 5)
+```
+
+lakukan langkah berikut dari Windows:
+
+1. Stop semua proses `php artisan serve`.
+2. Stop Apache dari XAMPP Control Panel.
+3. Pastikan folder berikut ada dan bisa dibaca/ditulis oleh user Windows yang menjalankan PHP/Apache:
+   - `bootstrap/cache`
+   - `storage`
+   - `storage/framework/views`
+   - `storage/framework/cache`
+   - `storage/framework/sessions`
+4. Hapus semua file `bootstrap/cache/*.php`.
+5. Hapus compiled views di `storage/framework/views` kecuali file `.gitignore`.
+6. Jalankan:
+
+```bat
+php scripts\repair-windows-xampp.php
+php artisan optimize:clear
+```
+
+Script `scripts/repair-windows-xampp.php` sengaja tidak memuat Laravel/vendor, sehingga bisa dipakai untuk membersihkan cache rusak terlebih dahulu. Script ini juga memeriksa versi PHP CLI, membuat folder cache/storage yang hilang, memeriksa permission baca/tulis, menghapus cache bootstrap dan compiled views, lalu menjalankan `php artisan optimize:clear` jika `vendor/autoload.php` tersedia.
+
+Jika script melaporkan PHP lebih lama dari 8.2, samakan versi PHP CLI dan Apache XAMPP ke **PHP 8.2+** sebelum menjalankan ulang perintah di atas.
