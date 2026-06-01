@@ -12,7 +12,13 @@ class PdfQuestionImportService
 
     private const PDF_UNRECOGNIZED_MESSAGE = 'Format soal PDF belum dikenali. Pastikan soal memiliki nomor, opsi A-E, atau gunakan template import yang disediakan.';
 
-    public function __construct(private readonly QuestionTextParser $parser = new QuestionTextParser()) {}
+    public function __construct(
+        private readonly QuestionTextParser $parser = new QuestionTextParser(),
+        private readonly PdfHighlightAnswerDetector $highlightDetector = new PdfHighlightAnswerDetector(),
+    ) {}
+
+    /** @var array<string, mixed> */
+    private array $lastHighlightSummary = [];
 
     /**
      * @return array<int, array<string, mixed>>
@@ -23,8 +29,12 @@ class PdfQuestionImportService
             $document = $this->extractDocument($path);
             $cleanText = $this->cleanNonQuestionText($document['text']);
             $questions = $this->parser->parse($cleanText);
+            $highlightAnswers = $this->highlightDetector->detectAnswers($path, $questions, $document['page_texts']);
+            $this->lastHighlightSummary = $this->highlightDetector->getLastSummary();
+            $questions = $this->applyHighlightAnswers($questions, $highlightAnswers);
+            $questions = $this->normalizeReviewState($questions);
 
-            $this->logImportSummary($document['pages'], $cleanText, $questions);
+            $this->logImportSummary($document['pages'], $cleanText, $questions, $this->lastHighlightSummary);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -39,7 +49,7 @@ class PdfQuestionImportService
     }
 
     /**
-     * @return array{pages: int, text: string}
+     * @return array{pages: int, text: string, page_texts: array<int, string>}
      */
     private function extractDocument(string $path): array
     {
@@ -66,6 +76,7 @@ class PdfQuestionImportService
         return [
             'pages' => count($pdf->getPages()),
             'text' => trim(implode("\n\n", $pageTexts)),
+            'page_texts' => $pageTexts,
         ];
     }
 
@@ -104,12 +115,14 @@ class PdfQuestionImportService
 
     /**
      * @param array<int, array<string, mixed>> $questions
+     * @param array<string, mixed> $highlightSummary
      */
-    private function logImportSummary(int $pages, string $text, array $questions): void
+    private function logImportSummary(int $pages, string $text, array $questions, array $highlightSummary = []): void
     {
         $questionNumbers = preg_match_all('/^\s*\d+\s*[\.)]\s+/mu', $text);
         $optionLabels = preg_match_all('/^\s*[A-E]\s*(?:[\.)]|\s+)\s*\S/mu', $text);
         $answersFound = count(array_filter($questions, fn (array $question): bool => filled($question['correct_answer'] ?? null)));
+        $highlightAnswersFound = (int) ($highlightSummary['answers_found'] ?? 0);
         $savedAsDraft = count(array_filter($questions, fn (array $question): bool => (bool) ($question['needs_review'] ?? false)));
         $failed = max(0, $questionNumbers - count($questions));
 
@@ -118,15 +131,95 @@ class PdfQuestionImportService
             'question_numbers' => $questionNumbers,
             'option_labels' => $optionLabels,
             'answers_found' => $answersFound,
+            'highlight_answers_found' => $highlightAnswersFound,
             'saved_as_draft' => $savedAsDraft,
-            'highlight_note' => 'Jawaban yang hanya ditandai highlight pada PDF tidak dapat dibaca oleh parser teks. Soal disimpan sebagai Draft untuk direview.',
+            'highlight_summary' => $highlightSummary,
         ]);
 
         Log::debug('[PDF IMPORT] pages='.$pages);
         Log::debug('[PDF IMPORT] question_numbers='.$questionNumbers);
         Log::debug('[PDF IMPORT] parsed_questions='.count($questions));
+        Log::debug('[PDF IMPORT] highlight_boxes='.(int) ($highlightSummary['highlight_boxes'] ?? 0));
+        Log::debug('[PDF IMPORT] highlight_answers_found='.$highlightAnswersFound);
+        Log::debug('[PDF IMPORT] answers='.$this->formatAnswersForLog((array) ($highlightSummary['answers'] ?? [])));
         Log::debug('[PDF IMPORT] answers_found='.$answersFound);
         Log::debug('[PDF IMPORT] saved_as_draft='.$savedAsDraft);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getLastHighlightSummary(): array
+    {
+        return $this->lastHighlightSummary;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $questions
+     * @param array<int, string> $highlightAnswers
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyHighlightAnswers(array $questions, array $highlightAnswers): array
+    {
+        foreach ($questions as $index => $question) {
+            if (filled($question['correct_answer'] ?? null)) {
+                continue;
+            }
+
+            $questionNumber = $index + 1;
+            $answer = strtoupper((string) ($highlightAnswers[$questionNumber] ?? ''));
+
+            if (! in_array($answer, ['A', 'B', 'C', 'D', 'E'], true)) {
+                continue;
+            }
+
+            if (blank($question['options'][$answer] ?? null)) {
+                continue;
+            }
+
+            $questions[$index]['correct_answer'] = $answer;
+            $questions[$index]['needs_review'] = false;
+            $questions[$index]['status'] = 'aktif';
+        }
+
+        return $questions;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $questions
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeReviewState(array $questions): array
+    {
+        foreach ($questions as $index => $question) {
+            if (filled($question['correct_answer'] ?? null)) {
+                $questions[$index]['needs_review'] = false;
+                $questions[$index]['status'] = $question['status'] ?? 'aktif';
+            } else {
+                $questions[$index]['correct_answer'] = null;
+                $questions[$index]['needs_review'] = true;
+                $questions[$index]['status'] = 'draft';
+            }
+        }
+
+        return $questions;
+    }
+
+    /** @param array<int, string> $answers */
+    private function formatAnswersForLog(array $answers): string
+    {
+        if ($answers === []) {
+            return '{}';
+        }
+
+        ksort($answers);
+        $pairs = [];
+
+        foreach ($answers as $number => $answer) {
+            $pairs[] = $number.':'.$answer;
+        }
+
+        return '{'.implode(',', $pairs).'}';
     }
 
     /**
@@ -139,6 +232,9 @@ class PdfQuestionImportService
         $options['source_type'] = 'pdf';
         $options['allow_missing_correct_answer'] = true;
 
-        return app(QuestionImportPersister::class)->import($questions, $options);
+        $result = app(QuestionImportPersister::class)->import($questions, $options);
+        $result['highlight'] = $this->lastHighlightSummary;
+
+        return $result;
     }
 }
