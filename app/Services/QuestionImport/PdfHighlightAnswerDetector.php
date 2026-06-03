@@ -95,10 +95,171 @@ class PdfHighlightAnswerDetector
         }
 
         if (stripos($content, '/Subtype/Highlight') !== false || stripos($content, '/Subtype /Highlight') !== false) {
-            Log::debug('[PDF IMPORT] highlight_annotations_present=1 note="annotation coordinates require rendered fallback mapping"');
+            $answers = $this->detectAnswersFromHighlightContents($content);
+
+            if ($answers !== []) {
+                Log::debug('[PDF IMPORT] highlight_annotations_present=1 annotation_contents_answers='.count($answers));
+
+                return $answers;
+            }
+
+            Log::debug('[PDF IMPORT] highlight_annotations_present=1 note="annotation contents empty; rendered fallback mapping required"');
         }
 
         return [];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function detectAnswersFromHighlightContents(string $content): array
+    {
+        if ($this->questions === []) {
+            return [];
+        }
+
+        if (! preg_match_all('/<<(?:(?!<<|>>).)*\/Subtype\s*\/?Highlight(?:(?!<<|>>).)*>>/isu', $content, $matches)) {
+            return [];
+        }
+
+        $answers = [];
+
+        foreach ($matches[0] as $annotation) {
+            $highlightText = $this->extractAnnotationContentsText($annotation);
+
+            if ($highlightText === '') {
+                continue;
+            }
+
+            $matched = $this->matchHighlightedTextToQuestionAnswer($highlightText);
+
+            if ($matched !== null) {
+                $answers[$matched['question_number']] ??= $matched['answer'];
+            }
+        }
+
+        ksort($answers);
+
+        return $answers;
+    }
+
+    private function extractAnnotationContentsText(string $annotation): string
+    {
+        $values = [];
+
+        if (preg_match_all('/\/(?:Contents|RC)\s*\(((?:\\\\.|[^\\\\)])*)\)/su', $annotation, $matches)) {
+            foreach ($matches[1] as $value) {
+                $values[] = $this->decodePdfLiteralString($value);
+            }
+        }
+
+        if (preg_match_all('/\/(?:Contents|RC)\s*<([0-9A-Fa-f]+)>/u', $annotation, $matches)) {
+            foreach ($matches[1] as $value) {
+                $decoded = @hex2bin($value);
+
+                if (is_string($decoded)) {
+                    $values[] = $this->normalizePdfStringEncoding($decoded);
+                }
+            }
+        }
+
+        $text = trim(implode(' ', array_filter($values, fn (string $value): bool => trim($value) !== '')));
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    private function decodePdfLiteralString(string $value): string
+    {
+        $value = preg_replace_callback('/\\\\([nrtbf()\\\\])|\\\\([0-7]{1,3})/u', function (array $matches): string {
+            if (($matches[2] ?? '') !== '') {
+                return chr(octdec($matches[2]));
+            }
+
+            return match ($matches[1]) {
+                'n' => "\n",
+                'r' => "\r",
+                't' => "\t",
+                'b' => "\b",
+                'f' => "\f",
+                default => $matches[1],
+            };
+        }, $value) ?? $value;
+
+        return $this->normalizePdfStringEncoding($value);
+    }
+
+    private function normalizePdfStringEncoding(string $value): string
+    {
+        if (str_starts_with($value, "\xFE\xFF")) {
+            $converted = @mb_convert_encoding(substr($value, 2), 'UTF-8', 'UTF-16BE');
+
+            return is_string($converted) ? $converted : $value;
+        }
+
+        if (str_starts_with($value, "\xFF\xFE")) {
+            $converted = @mb_convert_encoding(substr($value, 2), 'UTF-8', 'UTF-16LE');
+
+            return is_string($converted) ? $converted : $value;
+        }
+
+        if (! mb_check_encoding($value, 'UTF-8')) {
+            $converted = @mb_convert_encoding($value, 'UTF-8', 'Windows-1252, ISO-8859-1');
+
+            return is_string($converted) ? $converted : $value;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array{question_number: int, answer: string}|null
+     */
+    private function matchHighlightedTextToQuestionAnswer(string $highlightText): ?array
+    {
+        $normalizedHighlight = $this->normalizeComparableText($highlightText);
+
+        if ($normalizedHighlight === '') {
+            return null;
+        }
+
+        $explicitAnswer = preg_match('/^([A-Ea-e])(?:[\.)]|\s|$)/u', trim($highlightText), $matches)
+            ? strtoupper($matches[1])
+            : null;
+
+        foreach ($this->questions as $index => $question) {
+            $options = (array) ($question['options'] ?? []);
+
+            foreach ($options as $answer => $optionText) {
+                $answer = strtoupper((string) $answer);
+
+                if ($explicitAnswer !== null && $explicitAnswer !== $answer) {
+                    continue;
+                }
+
+                $normalizedOption = $this->normalizeComparableText((string) $optionText);
+
+                if ($normalizedOption === '') {
+                    continue;
+                }
+
+                if (str_contains($normalizedHighlight, $normalizedOption) || str_contains($normalizedOption, $normalizedHighlight)) {
+                    return ['question_number' => $index + 1, 'answer' => $answer];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeComparableText(string $text): string
+    {
+        $text = preg_replace('/^[A-Ea-e]\s*[\.)]\s*/u', '', trim($text)) ?? $text;
+        $text = mb_strtolower($text);
+        $text = preg_replace('/[^\pL\pN]+/u', ' ', $text) ?? $text;
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     /**

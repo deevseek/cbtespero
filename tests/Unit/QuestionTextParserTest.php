@@ -98,4 +98,19 @@ TEXT);
         $this->assertStringContainsString('This paragraph belongs', $questions[1]['question_text']);
         $this->assertStringNotContainsString('Read the following text', $questions[0]['options']['E']);
     }
+
+    public function test_splits_options_when_pdf_extracts_multiple_choices_on_one_line(): void
+    {
+        $parser = new QuestionTextParser();
+
+        $questions = $parser->parse(<<<'TEXT'
+1. The story is mainly about __________ A. White and black pebbles B. A clever girl and a wicked moneylender C. A misfortune merchant and his daughter D. A clever moneylender and a dull girl E. A merchant and a genial moneylender
+TEXT);
+
+        $this->assertCount(1, $questions);
+        $this->assertSame('The story is mainly about __________', $questions[0]['question_text']);
+        $this->assertSame('White and black pebbles', $questions[0]['options']['A']);
+        $this->assertSame('A clever girl and a wicked moneylender', $questions[0]['options']['B']);
+        $this->assertSame('A merchant and a genial moneylender', $questions[0]['options']['E']);
+    }
 }

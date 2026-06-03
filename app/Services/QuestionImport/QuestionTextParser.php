@@ -385,8 +385,27 @@ class QuestionTextParser
         $text = str_replace(["\r\n", "\r"], "\n", $text);
         $text = preg_replace('/\x{00a0}/u', ' ', $text) ?? $text;
         $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
+        $text = $this->splitEmbeddedOptionLabels($text);
         $text = preg_replace('/\n{3,}/', "\n\n", $text) ?? $text;
 
         return trim($text);
+    }
+
+    private function splitEmbeddedOptionLabels(string $text): string
+    {
+        $lines = preg_split('/\n/u', $text) ?: [];
+
+        foreach ($lines as $index => $line) {
+            $labelCount = preg_match_all('/(?:^|\s)([A-Ea-e])\s*[\.)]\s*\S/u', $line);
+
+            if ($labelCount < 3) {
+                continue;
+            }
+
+            $line = preg_replace('/\s+([A-Ea-e])\s*([\.)])\s*(?=\S)/u', "\n$1$2 ", $line) ?? $line;
+            $lines[$index] = ltrim($line);
+        }
+
+        return implode("\n", $lines);
     }
 }
