@@ -14,8 +14,13 @@ use App\Http\Controllers\Student\ProfileController as StudentProfileController;
 use App\Http\Controllers\Student\ResultController as StudentResultController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/admin/login');
-Route::redirect('/login', '/admin/login')->name('login');
+Route::get('/', function () {
+    return redirect('/student/login');
+});
+
+Route::get('/login', function () {
+    return redirect()->route('student.login');
+})->name('login');
 
 Route::get('/student/login', [AuthController::class, 'showLogin'])->name('student.login');
 Route::post('/student/login', [AuthController::class, 'login'])->name('student.login.attempt');
