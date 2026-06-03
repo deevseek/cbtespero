@@ -15,11 +15,11 @@ use App\Http\Controllers\Student\ResultController as StudentResultController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return redirect('/student/login');
+    return redirect('/admin');
 });
 
 Route::get('/login', function () {
-    return redirect()->route('student.login');
+    return redirect('/admin/login');
 })->name('login');
 
 Route::get('/student/login', [AuthController::class, 'showLogin'])->name('student.login');
