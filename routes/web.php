@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamController;
 use App\Http\Controllers\Admin\ExamReportExportController;
+use App\Http\Controllers\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\StudentController;
@@ -15,17 +16,17 @@ use App\Http\Controllers\Student\ResultController as StudentResultController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return redirect('/student/login');
+    return redirect('/login');
 });
 
-Route::get('/login', function () {
-    return redirect()->route('student.login');
-})->name('login');
+Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
+Route::post('/login', [AdminAuthController::class, 'login'])->name('login.attempt');
+Route::get('/admin/login', fn () => redirect('/login'))->name('admin.login.redirect');
 
 Route::get('/student/login', [AuthController::class, 'showLogin'])->name('student.login');
 Route::post('/student/login', [AuthController::class, 'login'])->name('student.login.attempt');
 Route::post('/student/logout', [AuthController::class, 'logout'])->name('student.logout');
-Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
+Route::post('/logout', [AdminAuthController::class, 'logout'])->middleware('auth')->name('logout');
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('filament.admin.')->group(function () {
     Route::get('/exam-results/export', ExamReportExportController::class)->name('exam-results.export');
