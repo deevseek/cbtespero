@@ -17,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo('/login');
+
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'student.auth' => EnsureStudentIsAuthenticated::class,
