@@ -5,7 +5,7 @@ namespace App\Services\QuestionImport;
 class QuestionTextParser
 {
     /**
-     * @return array<int, array{question_text: string, options: array<string, string>, correct_answer: ?string, type: string, needs_review: bool}>
+     * @return array<int, array{number?: int, question_text: string, options: array<string, string>, correct_answer: ?string, type: string, needs_review: bool}>
      */
     public function parse(string $text): array
     {
@@ -19,9 +19,10 @@ class QuestionTextParser
         $questions = [];
 
         foreach ($blocks as $block) {
-            $parsed = $this->parseQuestionBlock($block);
+            $parsed = $this->parseQuestionBlock($block['text']);
 
-            if ($parsed !== null) {
+            if ($parsed !== null && count($parsed['options']) >= 4) {
+                $parsed['number'] = $block['number'];
                 $questions[] = $parsed;
             }
         }
@@ -95,21 +96,24 @@ class QuestionTextParser
     }
 
     /**
-     * @return array<int, string>
+     * @return array<int, array{number: int, text: string}>
      */
     private function splitIntoQuestionBlocks(string $text): array
     {
-        if (! preg_match_all('/^\s*\d+\s*[\.)]\s+/mu', $text, $matches, PREG_OFFSET_CAPTURE)) {
-            return [$text];
+        if (! preg_match_all('/(^|\n)\s*(\d{1,3})[\.\)]\s+/u', $text, $matches, PREG_OFFSET_CAPTURE)) {
+            return [];
         }
 
         $blocks = [];
         $pendingPassage = trim(substr($text, 0, $matches[0][0][1]));
+        $activePassage = $pendingPassage;
+        $activePassageRange = $this->passageQuestionRange($pendingPassage);
         $matchCount = count($matches[0]);
 
         for ($index = 0; $index < $matchCount; $index++) {
             $start = $matches[0][$index][1];
             $end = $index + 1 < $matchCount ? $matches[0][$index + 1][1] : strlen($text);
+            $questionNumber = (int) $matches[2][$index][0];
             $chunk = trim(substr($text, $start, $end - $start));
 
             if ($chunk === '') {
@@ -117,17 +121,53 @@ class QuestionTextParser
             }
 
             $split = $this->splitTrailingPassage($chunk);
-            $block = $pendingPassage !== '' ? $pendingPassage."\n".$split['question'] : $split['question'];
+            $passageForQuestion = $pendingPassage;
+
+            if ($passageForQuestion === '' && $activePassage !== '' && $this->questionNumberInRange($questionNumber, $activePassageRange)) {
+                $passageForQuestion = $activePassage;
+            }
+
+            $block = $passageForQuestion !== '' ? $passageForQuestion."
+".$split['question'] : $split['question'];
             $block = trim($block);
 
             if ($block !== '') {
-                $blocks[] = $block;
+                $blocks[] = ['number' => $questionNumber, 'text' => $block];
             }
 
             $pendingPassage = $split['passage'];
+
+            if ($pendingPassage !== '') {
+                $activePassage = $pendingPassage;
+                $activePassageRange = $this->passageQuestionRange($pendingPassage);
+            }
         }
 
         return $blocks;
+    }
+
+
+    /**
+     * @return array{0: int, 1: int}|null
+     */
+    private function passageQuestionRange(string $passage): ?array
+    {
+        if (preg_match('/(?:no\.?|nomor|questions?)\s*(?:number\s*)?(\d{1,3})\s*(?:to|sampai|hingga|sd|s\/d|-)\s*(\d{1,3})/iu', $passage, $matches)) {
+            $start = (int) $matches[1];
+            $end = (int) $matches[2];
+
+            if ($start > 0 && $end >= $start) {
+                return [$start, $end];
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array{0: int, 1: int}|null $range */
+    private function questionNumberInRange(int $questionNumber, ?array $range): bool
+    {
+        return $range !== null && $questionNumber >= $range[0] && $questionNumber <= $range[1];
     }
 
     /**
@@ -238,26 +278,33 @@ class QuestionTextParser
 
         foreach ($lines as $index => $line) {
             if (preg_match('/^([A-Ea-e])\s*[\.)]\s*$/u', $line, $matches)) {
-                $pendingOption = strtoupper($matches[1]);
-                $currentOption = null;
+                $key = strtoupper($matches[1]);
 
-                continue;
+                if ($this->isPlausibleOptionLabel($key, $lines, $index, $currentOption, true)) {
+                    $pendingOption = $key;
+                    $currentOption = null;
+
+                    continue;
+                }
             }
 
             if (preg_match('/^([A-Ea-e])[\.)]\s*(\S.*)$/u', $line, $matches)) {
                 $key = strtoupper($matches[1]);
-                $text = trim($matches[2]);
-                $currentOption = $key;
-                $pendingOption = null;
-                $result[] = ['kind' => 'option', 'key' => $key, 'text' => $text];
 
-                continue;
+                if ($this->isPlausibleOptionLabel($key, $lines, $index, $currentOption, true)) {
+                    $text = trim($matches[2]);
+                    $currentOption = $key;
+                    $pendingOption = null;
+                    $result[] = ['kind' => 'option', 'key' => $key, 'text' => $text];
+
+                    continue;
+                }
             }
 
             if (preg_match('/^([A-Ea-e])\s+(\S.*)$/u', $line, $matches)) {
                 $key = strtoupper($matches[1]);
 
-                if ($key !== 'A' || $this->nextLineStartsWithLabel($lines, $index, 'B')) {
+                if ($this->isPlausibleOptionLabel($key, $lines, $index, $currentOption, false)) {
                     $currentOption = $key;
                     $pendingOption = null;
                     $result[] = ['kind' => 'option', 'key' => $key, 'text' => trim($matches[2])];
@@ -291,6 +338,49 @@ class QuestionTextParser
         return $result;
     }
 
+
+    /**
+     * @param array<int, string> $lines
+     */
+    private function isPlausibleOptionLabel(string $key, array $lines, int $currentIndex, ?string $currentOption, bool $hasPunctuation): bool
+    {
+        if (! in_array($key, ['A', 'B', 'C', 'D', 'E'], true)) {
+            return false;
+        }
+
+        if ($key === 'A') {
+            return $hasPunctuation || $this->nextLineStartsWithLabel($lines, $currentIndex, 'B');
+        }
+
+        if ($currentOption !== null && ord($key) === ord($currentOption) + 1) {
+            return true;
+        }
+
+        $previous = chr(ord($key) - 1);
+
+        return $this->previousResultHasOption($previous, $lines, $currentIndex)
+            || $this->nextLineStartsWithLabel($lines, $currentIndex, chr(ord($key) + 1));
+    }
+
+    /**
+     * @param array<int, string> $lines
+     */
+    private function previousResultHasOption(string $expectedLabel, array $lines, int $currentIndex): bool
+    {
+        for ($index = $currentIndex - 1; $index >= 0; $index--) {
+            $line = trim($lines[$index]);
+
+            if ($line === '') {
+                continue;
+            }
+
+            return (bool) in_array($expectedLabel, ['A', 'B', 'C', 'D', 'E'], true) && preg_match('/^'.preg_quote($expectedLabel, '/').'\s*(?:[\.)]|\s+)\s*\S/iu', $line)
+                || (bool) in_array($expectedLabel, ['A', 'B', 'C', 'D', 'E'], true) && preg_match('/^'.preg_quote($expectedLabel, '/').'\s*[\.)]\s*$/iu', $line);
+        }
+
+        return false;
+    }
+
     /**
      * @param array<int, string> $lines
      */
@@ -303,8 +393,8 @@ class QuestionTextParser
                 continue;
             }
 
-            return (bool) preg_match('/^'.preg_quote($expectedLabel, '/').'\s*(?:[\.)]|\s+)\s*\S/iu', $line)
-                || (bool) preg_match('/^'.preg_quote($expectedLabel, '/').'\s*[\.)]\s*$/iu', $line);
+            return (bool) in_array($expectedLabel, ['A', 'B', 'C', 'D', 'E'], true) && preg_match('/^'.preg_quote($expectedLabel, '/').'\s*(?:[\.)]|\s+)\s*\S/iu', $line)
+                || (bool) in_array($expectedLabel, ['A', 'B', 'C', 'D', 'E'], true) && preg_match('/^'.preg_quote($expectedLabel, '/').'\s*[\.)]\s*$/iu', $line);
         }
 
         return false;
