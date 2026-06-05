@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\ExamResult;
 use App\Models\Student;
+use App\Support\FilamentNumberFormatter;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -65,7 +66,7 @@ class MonitoringUjian extends Page implements HasTable
                 })->badge()->color(fn (ExamResult $record): string => $record->server_ends_at && now()->greaterThan($record->server_ends_at) ? 'danger' : 'success'),
                 Tables\Columns\TextColumn::make('answered_count')->label('Terjawab')->state(fn (ExamResult $record): string => ((int) ($record->answered_count ?? $record->answered_questions)).' / '.max(1, (int) ($record->answers_count ?? $record->total_questions)))->alignCenter(),
                 Tables\Columns\TextColumn::make('violation_logs_count')->label('Pelanggaran')->badge()->state(fn (ExamResult $record): string => (string) ($record->violation_logs_count ?? 0))->color(fn (ExamResult $record): string => ($record->violation_logs_count ?? 0) >= 3 ? 'danger' : (($record->violation_logs_count ?? 0) > 0 ? 'warning' : 'success')),
-                Tables\Columns\TextColumn::make('nilai')->label('Nilai')->numeric(2)->placeholder('-')->sortable(),
+                Tables\Columns\TextColumn::make('nilai')->label('Nilai')->formatStateUsing(fn (mixed $state): ?string => FilamentNumberFormatter::format($state, 2))->placeholder('-')->sortable(),
                 Tables\Columns\TextColumn::make('last_heartbeat_at')->label('Last Seen')->since()->dateTime('d M Y H:i:s')->placeholder('-')->sortable(),
                 Tables\Columns\TextColumn::make('device_info')->label('Device/IP')->state(fn (ExamResult $record): string => collect([$record->device_name ?: $record->platform, $record->device_id, $record->ip_address, $record->user_agent])->filter()->join(' / ') ?: '-')->limit(70)->wrap()->searchable(query: fn (Builder $query, string $search): Builder => $query->where('device_name', 'like', "%{$search}%")->orWhere('device_id', 'like', "%{$search}%")->orWhere('ip_address', 'like', "%{$search}%")),
             ])
