@@ -12,10 +12,8 @@
 |
 */
 
-if (PHP_VERSION_ID < 80200) {
-    $message = 'This Laravel application requires PHP 8.2 or newer. Current PHP: '.PHP_VERSION.'. '.
-        'On Windows/XAMPP, switch Apache and CLI to PHP 8.2+ before running php artisan optimize:clear.';
-
+function abortCompatibilityCheck(string $message): void
+{
     if (PHP_SAPI === 'cli') {
         fwrite(STDERR, $message.PHP_EOL);
         exit(1);
@@ -25,4 +23,19 @@ if (PHP_VERSION_ID < 80200) {
     header('Content-Type: text/plain; charset=UTF-8');
     echo $message;
     exit(1);
+}
+
+if (PHP_VERSION_ID < 80200) {
+    abortCompatibilityCheck(
+        'This Laravel application requires PHP 8.2 or newer. Current PHP: '.PHP_VERSION.'. '.
+        'On Windows/XAMPP, switch Apache and CLI to PHP 8.2+ before running php artisan optimize:clear.'
+    );
+}
+
+if (! extension_loaded('intl')) {
+    abortCompatibilityCheck(
+        'The PHP intl extension is required by Laravel/Filament number formatting. '.
+        'On Windows/XAMPP, enable extension=intl in php.ini for both Apache and PHP CLI, restart Apache, '.
+        'then run php artisan optimize:clear.'
+    );
 }
