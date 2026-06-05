@@ -13,6 +13,7 @@
 
 $basePath = dirname(__DIR__);
 $requiredPhpVersion = 80200;
+$requiredExtensions = ['intl'];
 $requiredDirectories = [
     'bootstrap/cache',
     'storage',
@@ -71,6 +72,16 @@ line('PHP CLI version: '.PHP_VERSION.' ('.PHP_BINARY.')');
 
 if (PHP_VERSION_ID < $requiredPhpVersion) {
     fail('Project ini membutuhkan PHP 8.2 atau lebih baru. Upgrade/switch XAMPP Apache dan PHP CLI ke PHP 8.2+ sebelum menjalankan artisan.');
+    exit(1);
+}
+
+foreach ($requiredExtensions as $extension) {
+    if (extension_loaded($extension)) {
+        line('[OK] PHP extension '.$extension.' aktif.');
+        continue;
+    }
+
+    fail('PHP extension '.$extension.' belum aktif. Untuk Windows/XAMPP, buka php.ini yang dipakai Apache dan PHP CLI, aktifkan extension='.$extension.', restart Apache, lalu jalankan ulang script ini.');
     exit(1);
 }
 

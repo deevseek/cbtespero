@@ -70,7 +70,7 @@ Seeder `StudentSeeder` menyediakan akun siswa yang bisa langsung digunakan di `/
 
 ## Perbaikan Cache Laravel di Windows/XAMPP
 
-Project ini menggunakan Laravel 12 dan membutuhkan **PHP 8.2 atau lebih baru**. Jika XAMPP masih memakai PHP lama, Laravel dapat gagal saat merender exception dan menampilkan error seperti `syntax error, unexpected token "="` dari file vendor Laravel. Jangan edit file `vendor`; ganti PHP XAMPP/CLI ke PHP 8.2+.
+Project ini menggunakan Laravel 12 dan membutuhkan **PHP 8.2 atau lebih baru** serta extension PHP **intl**. Jika XAMPP masih memakai PHP lama atau `intl` belum aktif, Laravel/Filament dapat gagal saat merender halaman dan menampilkan error seperti `The "intl" PHP extension is required to use the [format] method.` atau `syntax error, unexpected token "="` dari file vendor Laravel. Jangan edit file `vendor`; ganti PHP XAMPP/CLI ke PHP 8.2+ dan aktifkan `extension=intl` di `php.ini`.
 
 Jika muncul error seperti berikut:
 
@@ -99,4 +99,4 @@ php artisan optimize:clear
 
 Script `scripts/repair-windows-xampp.php` sengaja tidak memuat Laravel/vendor, sehingga bisa dipakai untuk membersihkan cache rusak terlebih dahulu. Script ini juga memeriksa versi PHP CLI, membuat folder cache/storage yang hilang, memeriksa permission baca/tulis, menghapus cache bootstrap dan compiled views, lalu menjalankan `php artisan optimize:clear` jika `vendor/autoload.php` tersedia.
 
-Jika script melaporkan PHP lebih lama dari 8.2, samakan versi PHP CLI dan Apache XAMPP ke **PHP 8.2+** sebelum menjalankan ulang perintah di atas.
+Jika script melaporkan PHP lebih lama dari 8.2, samakan versi PHP CLI dan Apache XAMPP ke **PHP 8.2+** sebelum menjalankan ulang perintah di atas. Jika script melaporkan extension `intl` belum aktif, buka `php.ini` yang dipakai Apache dan PHP CLI, hilangkan tanda `;` pada baris `extension=intl`, restart Apache/XAMPP, lalu jalankan ulang script.
