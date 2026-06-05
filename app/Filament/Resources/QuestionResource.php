@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\QuestionResource\Pages;
 use App\Models\Question;
 use App\Models\QuestionImport;
+use App\Support\FilamentNumberFormatter;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -49,7 +50,7 @@ class QuestionResource extends Resource
                 Tables\Columns\TextColumn::make('kelas')->label('Kelas')->badge()->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('soal')->label('Soal')->limit(90)->wrap()->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('tingkat_kesulitan')->label('Kesulitan')->badge()->color(fn (?string $state): string => match (strtolower((string) $state)) { 'mudah' => 'success', 'sulit' => 'danger', default => 'warning' })->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('bobot_nilai')->label('Nilai per Soal')->numeric()->sortable(),
+                Tables\Columns\TextColumn::make('bobot_nilai')->label('Nilai per Soal')->formatStateUsing(fn (mixed $state): ?string => FilamentNumberFormatter::format($state))->sortable(),
                 Tables\Columns\IconColumn::make('jawaban_benar')->label('Ada Kunci')->boolean()->getStateUsing(fn (Question $record): bool => filled($record->jawaban_benar)),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()->sortable(),
             ])

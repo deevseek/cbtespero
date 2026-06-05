@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ExamResultResource\Pages;
 use App\Models\ExamResult;
 use App\Models\Student;
+use App\Support\FilamentNumberFormatter;
 use App\Services\ExamResultScoringService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -67,7 +68,7 @@ class ExamResultResource extends Resource
                 Tables\Columns\TextColumn::make('benar')->label('Benar')->state(fn (ExamResult $record): int => self::correctCount($record))->alignCenter()->color('success'),
                 Tables\Columns\TextColumn::make('salah')->label('Salah')->state(fn (ExamResult $record): int => self::wrongCount($record))->alignCenter()->color('danger'),
                 Tables\Columns\TextColumn::make('tidak_dijawab')->label('Tidak Dijawab')->state(fn (ExamResult $record): int => self::unansweredCount($record))->alignCenter()->color('warning'),
-                Tables\Columns\TextColumn::make('nilai')->label('Nilai')->numeric(2)->placeholder('0')->sortable()->weight('bold'),
+                Tables\Columns\TextColumn::make('nilai')->label('Nilai')->formatStateUsing(fn (mixed $state): ?string => FilamentNumberFormatter::format($state, 2))->placeholder('0')->sortable()->weight('bold'),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()->formatStateUsing(fn (?string $state, ExamResult $record): string => self::statusLabel($state, $record))->color(fn (?string $state, ExamResult $record): string => self::statusColor($state, $record))->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('started_at')->label('Waktu Mulai')->dateTime('d M Y H:i')->placeholder('-')->sortable()->toggleable(),
                 Tables\Columns\TextColumn::make('submitted_at')->label('Waktu Submit')->dateTime('d M Y H:i')->placeholder('-')->sortable()->toggleable(),

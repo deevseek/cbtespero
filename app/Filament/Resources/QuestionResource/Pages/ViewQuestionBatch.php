@@ -5,6 +5,7 @@ namespace App\Filament\Resources\QuestionResource\Pages;
 use App\Filament\Resources\QuestionResource;
 use App\Models\Question;
 use App\Models\QuestionImport;
+use App\Support\FilamentNumberFormatter;
 use Filament\Actions;
 use Filament\Resources\Pages\Page;
 use Filament\Tables;
@@ -58,7 +59,7 @@ class ViewQuestionBatch extends Page implements HasTable
                     ->label('Tipe')
                     ->default('Pilihan Ganda'),
                 Tables\Columns\TextColumn::make('tingkat_kesulitan')->label('Kesulitan')->badge()->sortable(),
-                Tables\Columns\TextColumn::make('bobot_nilai')->label('Nilai per Soal')->numeric()->sortable(),
+                Tables\Columns\TextColumn::make('bobot_nilai')->label('Nilai per Soal')->formatStateUsing(fn (mixed $state): ?string => FilamentNumberFormatter::format($state))->sortable(),
                 Tables\Columns\TextColumn::make('jawaban_benar')->label('Jawaban Benar')->formatStateUsing(fn (?string $state): string => filled($state) ? strtoupper($state) : 'Belum ada')->badge()->color(fn (?string $state): string => filled($state) ? 'success' : 'warning'),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()->sortable(),
             ])
