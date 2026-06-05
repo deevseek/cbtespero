@@ -29,12 +29,12 @@ class PdfQuestionImportService
             $document = $this->extractDocument($path);
             $cleanText = $this->cleanNonQuestionText($document['text']);
             $questions = $this->parser->parse($cleanText);
-            $highlightAnswers = $this->highlightDetector->detectAnswers($path, $questions, $document['page_texts']);
+            $highlightAnswers = $this->highlightDetector->detect($path, $questions, $document['page_texts']);
             $this->lastHighlightSummary = $this->highlightDetector->getLastSummary();
             $questions = $this->applyHighlightAnswers($questions, $highlightAnswers);
             $questions = $this->normalizeReviewState($questions);
 
-            $this->logImportSummary($document['pages'], $cleanText, $questions, $this->lastHighlightSummary);
+            $this->logImportSummary($path, $document['pages'], $cleanText, $questions, $this->lastHighlightSummary);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -117,16 +117,18 @@ class PdfQuestionImportService
      * @param array<int, array<string, mixed>> $questions
      * @param array<string, mixed> $highlightSummary
      */
-    private function logImportSummary(int $pages, string $text, array $questions, array $highlightSummary = []): void
+    private function logImportSummary(string $path, int $pages, string $text, array $questions, array $highlightSummary = []): void
     {
         $questionNumbers = preg_match_all('/^\s*\d+\s*[\.)]\s+/mu', $text);
         $optionLabels = preg_match_all('/^\s*[A-E]\s*(?:[\.)]|\s+)\s*\S/mu', $text);
         $answersFound = count(array_filter($questions, fn (array $question): bool => filled($question['correct_answer'] ?? null)));
         $highlightAnswersFound = (int) ($highlightSummary['answers_found'] ?? 0);
         $savedAsDraft = count(array_filter($questions, fn (array $question): bool => (bool) ($question['needs_review'] ?? false)));
+        $savedActive = count($questions) - $savedAsDraft;
+        $completeOptions = count(array_filter($questions, fn (array $question): bool => count((array) ($question['options'] ?? [])) >= 5));
         $failed = max(0, $questionNumbers - count($questions));
 
-        Log::debug('[PDF IMPORT] pages='.$pages.' text_length='.mb_strlen($text).' parsed='.count($questions).' failed='.$failed, [
+        Log::debug('[PDF IMPORT] file='.basename($path).' pages='.$pages.' text_length='.mb_strlen($text).' parsed='.count($questions).' failed='.$failed, [
             'first_1000_chars' => mb_substr($text, 0, 1000),
             'question_numbers' => $questionNumbers,
             'option_labels' => $optionLabels,
@@ -136,14 +138,26 @@ class PdfQuestionImportService
             'highlight_summary' => $highlightSummary,
         ]);
 
+        Log::debug('[PDF IMPORT] file='.basename($path));
         Log::debug('[PDF IMPORT] pages='.$pages);
-        Log::debug('[PDF IMPORT] question_numbers='.$questionNumbers);
+        Log::debug('[PDF IMPORT] text_length='.mb_strlen($text));
+        Log::debug('[PDF IMPORT] detected_question_numbers='.$questionNumbers);
         Log::debug('[PDF IMPORT] parsed_questions='.count($questions));
+        Log::debug('[PDF IMPORT] parsed_options_complete='.$completeOptions);
         Log::debug('[PDF IMPORT] highlight_boxes='.(int) ($highlightSummary['highlight_boxes'] ?? 0));
         Log::debug('[PDF IMPORT] highlight_answers_found='.$highlightAnswersFound);
         Log::debug('[PDF IMPORT] answers='.$this->formatAnswersForLog((array) ($highlightSummary['answers'] ?? [])));
         Log::debug('[PDF IMPORT] answers_found='.$answersFound);
-        Log::debug('[PDF IMPORT] saved_as_draft='.$savedAsDraft);
+        Log::debug('[PDF IMPORT] saved_active='.$savedActive);
+        Log::debug('[PDF IMPORT] saved_draft='.$savedAsDraft);
+        Log::debug('[PDF IMPORT] skipped_blocks='.$failed);
+
+        foreach (array_slice($questions, 0, 3) as $index => $question) {
+            $number = (int) ($question['number'] ?? $index + 1);
+            $options = implode(',', array_keys((array) ($question['options'] ?? [])));
+            $answer = filled($question['correct_answer'] ?? null) ? strtoupper((string) $question['correct_answer']) : '-';
+            Log::debug('[PDF IMPORT SAMPLE] no='.$number.' options='.$options.' answer='.$answer);
+        }
     }
 
     /**
@@ -166,7 +180,7 @@ class PdfQuestionImportService
                 continue;
             }
 
-            $questionNumber = $index + 1;
+            $questionNumber = (int) ($question['number'] ?? $index + 1);
             $answer = strtoupper((string) ($highlightAnswers[$questionNumber] ?? ''));
 
             if (! in_array($answer, ['A', 'B', 'C', 'D', 'E'], true)) {

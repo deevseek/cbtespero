@@ -35,7 +35,7 @@ class PdfHighlightAnswerDetector
      * @param array<int, string> $pageTexts
      * @return array<int, string>
      */
-    public function detectAnswers(string $pdfPath, array $questions = [], array $pageTexts = []): array
+    public function detect(string $pdfPath, array $questions = [], array $pageTexts = []): array
     {
         $this->questions = $questions;
         $this->pageTexts = $pageTexts;
@@ -51,7 +51,7 @@ class PdfHighlightAnswerDetector
         }
 
         try {
-            $answers = $this->detectAnswersFromAnnotations($pdfPath);
+            $answers = $this->detectFromAnnotations($pdfPath);
 
             if ($answers !== []) {
                 $this->lastSummary['answers'] = $answers;
@@ -65,7 +65,7 @@ class PdfHighlightAnswerDetector
         }
 
         try {
-            $answers = $this->detectAnswersFromRenderedPages($pdfPath);
+            $answers = $this->detectFromRenderedPages($pdfPath, $questions);
             $this->lastSummary['answers'] = $answers;
             $this->lastSummary['answers_found'] = count($answers);
 
@@ -80,13 +80,23 @@ class PdfHighlightAnswerDetector
     }
 
     /**
+     * @param array<int, array<string, mixed>> $questions
+     * @param array<int, string> $pageTexts
+     * @return array<int, string>
+     */
+    public function detectAnswers(string $pdfPath, array $questions = [], array $pageTexts = []): array
+    {
+        return $this->detect($pdfPath, $questions, $pageTexts);
+    }
+
+    /**
      * Coba membaca annotation highlight dari struktur PDF. Smalot/pdfparser tidak menyediakan
      * API stabil untuk koordinat highlight, jadi implementasi aman ini hanya mendeteksi bahwa
      * annotation ada dan mengembalikan kosong agar fallback render image tetap berjalan.
      *
      * @return array<int, string>
      */
-    public function detectAnswersFromAnnotations(string $pdfPath): array
+    public function detectFromAnnotations(string $pdfPath): array
     {
         $content = @file_get_contents($pdfPath, false, null, 0, 1024 * 1024 * 8);
 
@@ -107,6 +117,12 @@ class PdfHighlightAnswerDetector
         }
 
         return [];
+    }
+
+    /** @return array<int, string> */
+    public function detectAnswersFromAnnotations(string $pdfPath): array
+    {
+        return $this->detectFromAnnotations($pdfPath);
     }
 
     /**
@@ -245,7 +261,7 @@ class PdfHighlightAnswerDetector
                 }
 
                 if (str_contains($normalizedHighlight, $normalizedOption) || str_contains($normalizedOption, $normalizedHighlight)) {
-                    return ['question_number' => $index + 1, 'answer' => $answer];
+                    return ['question_number' => (int) ($question['number'] ?? $index + 1), 'answer' => $answer];
                 }
             }
         }
@@ -265,8 +281,11 @@ class PdfHighlightAnswerDetector
     /**
      * @return array<int, string>
      */
-    public function detectAnswersFromRenderedPages(string $pdfPath): array
+    public function detectFromRenderedPages(string $pdfPath, array $parsedQuestions = []): array
     {
+        if ($parsedQuestions !== []) {
+            $this->questions = $parsedQuestions;
+        }
         $renderer = $this->resolveRenderer();
 
         if ($renderer === null) {
@@ -302,6 +321,12 @@ class PdfHighlightAnswerDetector
         } finally {
             $this->deleteDirectory($tempDir);
         }
+    }
+
+    /** @return array<int, string> */
+    public function detectAnswersFromRenderedPages(string $pdfPath): array
+    {
+        return $this->detectFromRenderedPages($pdfPath);
     }
 
     /** @return array<string, mixed> */

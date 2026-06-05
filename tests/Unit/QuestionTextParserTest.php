@@ -113,4 +113,44 @@ TEXT);
         $this->assertSame('A clever girl and a wicked moneylender', $questions[0]['options']['B']);
         $this->assertSame('A merchant and a genial moneylender', $questions[0]['options']['E']);
     }
+    public function test_does_not_import_numbered_passage_without_multiple_choice_options(): void
+    {
+        $parser = new QuestionTextParser();
+
+        $questions = $parser->parse(<<<'TEXT'
+Read the text carefully.
+Hundred years ago a merchant lived with his daughter.
+1. This numbered paragraph is only a passage without choices.
+It should not become a multiple choice question.
+2. The story is mainly about __________
+A. White and black pebbles
+B. A clever girl and a wicked moneylender
+C. A misfortune merchant and his daughter
+D. A clever moneylender and a dull girl
+E. A merchant and a genial moneylender
+TEXT);
+
+        $this->assertCount(1, $questions);
+        $this->assertSame(2, $questions[0]['number']);
+        $this->assertSame('A clever girl and a wicked moneylender', $questions[0]['options']['B']);
+    }
+
+    public function test_does_not_treat_passage_titles_starting_with_option_letters_as_options(): void
+    {
+        $parser = new QuestionTextParser();
+
+        $questions = $parser->parse(<<<'TEXT'
+Being On time
+1. What is the text about?
+A A habit
+B A place
+C A person
+D A tool
+E A color
+TEXT);
+
+        $this->assertCount(1, $questions);
+        $this->assertStringContainsString('Being On time', $questions[0]['question_text']);
+        $this->assertSame('A habit', $questions[0]['options']['A']);
+    }
 }

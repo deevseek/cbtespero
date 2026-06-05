@@ -287,15 +287,11 @@ class ListQuestions extends ListRecords
             $draftCount = $review;
 
             if ($highlightAnswers > 0 && $draftCount === 0 && $failed === 0) {
-                $message = "Import PDF berhasil. {$created} soal berhasil diimport dan {$highlightAnswers} kunci jawaban berhasil dibaca dari highlight kuning.";
+                $message = "Import PDF berhasil. {$created} soal berhasil diimport, {$highlightAnswers} kunci jawaban terbaca dari highlight kuning.";
             } elseif ($highlightAnswers > 0) {
-                $message = "Import PDF selesai dengan catatan. {$created} soal berhasil diimport, {$highlightAnswers} kunci jawaban terbaca dari highlight, {$draftCount} soal disimpan sebagai Draft untuk direview.";
-
-                if ($failed > 0) {
-                    $message .= " {$failed} soal gagal diproses.";
-                }
+                $message = "Import PDF selesai dengan catatan. {$created} soal berhasil, {$failed} soal gagal diparse, {$highlightAnswers} kunci terbaca, {$draftCount} soal disimpan sebagai Draft untuk direview.";
             } elseif ($highlightUnavailable && $draftCount > 0) {
-                $message = 'Import PDF berhasil, tetapi highlight kuning tidak dapat dibaca di server ini. Soal disimpan sebagai Draft untuk direview.';
+                $message = "Import PDF selesai. {$created} soal berhasil diimport, tetapi kunci highlight kuning belum bisa dibaca. Soal disimpan sebagai Draft untuk direview.";
             } else {
                 $message = "Import PDF selesai. {$created} soal berhasil diimport";
 
