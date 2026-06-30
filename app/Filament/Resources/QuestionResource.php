@@ -8,6 +8,8 @@ use App\Models\QuestionImport;
 use App\Support\FilamentNumberFormatter;
 use Filament\Forms;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
@@ -31,17 +33,102 @@ class QuestionResource extends Resource
         return $schema->components([
             Forms\Components\TextInput::make('mata_pelajaran')->label('Mapel'),
             Forms\Components\TextInput::make('kelas')->label('Kelas'),
-            Forms\Components\Textarea::make('soal')->label('Soal')->rows(6)->columnSpanFull(),
-            Forms\Components\Textarea::make('pilihan_a')->label('Opsi A')->rows(2)->required(),
-            Forms\Components\Textarea::make('pilihan_b')->label('Opsi B')->rows(2)->required(),
-            Forms\Components\Textarea::make('pilihan_c')->label('Opsi C')->rows(2)->required(),
-            Forms\Components\Textarea::make('pilihan_d')->label('Opsi D')->rows(2)->required(),
-            Forms\Components\Textarea::make('pilihan_e')->label('Opsi E')->rows(2),
-            Forms\Components\Select::make('jawaban_benar')
-                ->label('Jawaban Benar')
-                ->options(['a' => 'A', 'b' => 'B', 'c' => 'C', 'd' => 'D', 'e' => 'E'])
+            Forms\Components\Select::make('tipe_soal')
+                ->label('Tipe Soal')
+                ->options([
+                    'pilihan_ganda' => 'Pilihan Ganda (Single Answer)',
+                    'multiple_answer' => 'Pilihan Ganda Kompleks (Multiple Answer)',
+                    'checklist' => 'Checklist (Benar/Salah)',
+                    'dropdown' => 'Dropdown',
+                ])
                 ->native(false)
-                ->placeholder('Belum ada kunci'),
+                ->default('pilihan_ganda')
+                ->reactive()
+                ->live(),
+            Forms\Components\Textarea::make('soal')->label('Soal')->rows(6)->columnSpanFull(),
+            
+            // Options section - visible for all types except checklist
+            Section::make('Opsi Jawaban')
+                ->schema([
+                    Forms\Components\Textarea::make('pilihan_a')->label('Opsi A')->rows(2),
+                    Forms\Components\Textarea::make('pilihan_b')->label('Opsi B')->rows(2),
+                    Forms\Components\Textarea::make('pilihan_c')->label('Opsi C')->rows(2),
+                    Forms\Components\Textarea::make('pilihan_d')->label('Opsi D')->rows(2),
+                    Forms\Components\Textarea::make('pilihan_e')->label('Opsi E')->rows(2),
+                ])
+                ->hidden(fn (Get $get): bool => $get('tipe_soal') === 'checklist'),
+            
+            // Checklist items section - only visible for checklist type
+            Section::make('Pernyataan Checklist')
+                ->schema([
+                    Forms\Components\Repeater::make('checklist_items')
+                        ->label('Daftar Pernyataan')
+                        ->schema([
+                            Forms\Components\Textarea::make('statement')->label('Pernyataan')->rows(2)->required(),
+                            Forms\Components\Select::make('is_correct')->label('Jawaban Benar')
+                                ->options(['true' => 'Benar', 'false' => 'Salah'])
+                                ->required(),
+                        ])
+                        ->collapsible()
+                        ->itemLabel(fn (array $state): string => $state['statement'] ?? 'Pernyataan baru')
+                        ->helperText('Tambahkan pernyataan yang akan dinilai Benar atau Salah.'),
+                ])
+                ->visible(fn (Get $get): bool => $get('tipe_soal') === 'checklist'),
+            
+            // Answer key section - changes based on question type
+            Section::make('Kunci Jawaban')
+                ->schema([
+                    // For single choice and dropdown
+                    Forms\Components\Select::make('jawaban_benar')
+                        ->label('Jawaban Benar')
+                        ->options(['a' => 'A', 'b' => 'B', 'c' => 'C', 'd' => 'D', 'e' => 'E'])
+                        ->native(false)
+                        ->placeholder('Belum ada kunci')
+                        ->visible(fn (Get $get): bool => in_array($get('tipe_soal'), ['pilihan_ganda', 'dropdown', null])),
+                    
+                    // For multiple answer
+                    Forms\Components\CheckboxList::make('jawaban_benar_multiple')
+                        ->label('Jawaban Benar (Multiple)')
+                        ->options([
+                            'a' => 'Opsi A',
+                            'b' => 'Opsi B', 
+                            'c' => 'Opsi C',
+                            'd' => 'Opsi D',
+                            'e' => 'Opsi E',
+                        ])
+                        ->visible(fn (Get $get): bool => $get('tipe_soal') === 'multiple_answer')
+                        ->helperText('Centang semua opsi yang merupakan jawaban benar.'),
+                    
+                    // For checklist - stored in checklist_items, but we keep jawaban_benar as JSON
+                    Forms\Components\Placeholder::make('checklist_key_info')
+                        ->label('Info')
+                        ->content('Kunci jawaban untuk checklist ditentukan pada pengaturan Benar/Salah di setiap pernyataan di atas.')
+                        ->visible(fn (Get $get): bool => $get('tipe_soal') === 'checklist'),
+                ]),
+            
+            Section::make('Parameter Penilaian')
+                ->schema([
+                    Forms\Components\Select::make('scoring_method')
+                        ->label('Metode Penilaian')
+                        ->options([
+                            'all_or_nothing' => 'All or Nothing (Semua benar / 0)',
+                            'proportional' => 'Proporsional (Sesuai jumlah benar)',
+                            'penalty' => 'Minus/Penalti (Salah mengurangi poin)',
+                        ])
+                        ->native(false)
+                        ->default('all_or_nothing')
+                        ->helperText('Pilih metode penilaian untuk soal ini. Hanya berlaku untuk Multiple Answer dan Checklist.'),
+                    
+                    Forms\Components\KeyValue::make('scoring_parameters')
+                        ->label('Parameter Tambahan')
+                        ->keyLabel('Parameter')
+                        ->valueLabel('Nilai')
+                        ->keyPlaceholder('Nama parameter')
+                        ->valuePlaceholder('Nilai parameter')
+                        ->helperText('Contoh: penalty_weight => 0.25, partial_credit => true. Gunakan format JSON/Key-Value.'),
+                ])
+                ->visible(fn (Get $get): bool => in_array($get('tipe_soal'), ['multiple_answer', 'checklist'])),
+            
             Forms\Components\Select::make('status')
                 ->label('Status')
                 ->options(['aktif' => 'Aktif', 'draft' => 'Draft'])

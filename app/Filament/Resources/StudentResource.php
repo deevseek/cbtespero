@@ -25,15 +25,29 @@ class StudentResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Forms\Components\TextInput::make('nis')
-                ->label('NIS')
-                ->required()
+            Forms\Components\TextInput::make('nisn')
+                ->label('NISN')
                 ->maxLength(255)
                 ->unique(ignoreRecord: true),
             Forms\Components\TextInput::make('nama')
-                ->label('Nama')
+                ->label('Nama Lengkap')
                 ->required()
                 ->maxLength(255),
+            Forms\Components\TextInput::make('email')
+                ->label('Alamat Email')
+                ->email()
+                ->maxLength(255)
+                ->unique(ignoreRecord: true),
+            Forms\Components\TextInput::make('asal_smp')
+                ->label('Asal Sekolah / SMP')
+                ->maxLength(255),
+            Forms\Components\Textarea::make('alamat_rumah')
+                ->label('Alamat Rumah')
+                ->rows(3),
+            Forms\Components\Select::make('jenis_kelamin')
+                ->label('Jenis Kelamin')
+                ->options(['L' => 'Laki-laki', 'P' => 'Perempuan'])
+                ->native(false),
             Forms\Components\TextInput::make('kelas')
                 ->label('Kelas')
                 ->required()
@@ -67,8 +81,11 @@ class StudentResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('nis')->label('NIS')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('nisn')->label('NISN')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('nama')->label('Nama')->searchable()->sortable()->weight('semibold'),
+                Tables\Columns\TextColumn::make('email')->label('Email')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('asal_smp')->label('Asal SMP')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('jenis_kelamin')->label('Jenis Kelamin')->formatStateUsing(fn (?string $state): string => $state === 'L' ? 'Laki-laki' : ($state === 'P' ? 'Perempuan' : '-'))->badge()->color(fn (?string $state): string => $state === 'L' ? 'info' : 'danger'),
                 Tables\Columns\TextColumn::make('kelas')->label('Kelas')->badge()->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('username')->label('Username')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()->formatStateUsing(fn (?string $state): string => $state === 'aktif' ? 'Aktif' : 'Nonaktif')->color(fn (?string $state): string => $state === 'aktif' ? 'success' : 'gray')->searchable()->sortable(),

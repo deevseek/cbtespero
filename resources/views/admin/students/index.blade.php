@@ -5,7 +5,12 @@
         <form class="flex-1"><input x-model.debounce.500ms="q" @input="$el.form.submit()" name="q" class="w-full border rounded-xl p-2" placeholder="Search realtime siswa..."></form>
         <form method="post" action="{{ route('admin.students.store') }}" class="grid grid-cols-6 gap-2">@csrf
             <input name="nis" placeholder="NIS" class="border rounded-xl p-2" required>
-            <input name="nama" placeholder="Nama" class="border rounded-xl p-2" required>
+            <input name="nisn" placeholder="NISN" class="border rounded-xl p-2">
+            <input name="nama" placeholder="Nama Lengkap" class="border rounded-xl p-2" required>
+            <input name="email" type="email" placeholder="Email" class="border rounded-xl p-2">
+            <input name="asal_smp" placeholder="Asal SMP" class="border rounded-xl p-2">
+            <textarea name="alamat_rumah" placeholder="Alamat Rumah" class="border rounded-xl p-2 col-span-6"></textarea>
+            <select name="jenis_kelamin" class="border rounded-xl p-2"><option value="">Pilih Jenis Kelamin</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></select>
             <input name="kelas" placeholder="Kelas" class="border rounded-xl p-2" required>
             <input name="username" placeholder="Username" class="border rounded-xl p-2" required>
             <input name="password" placeholder="Password" class="border rounded-xl p-2" required>
@@ -13,10 +18,22 @@
             <button class="col-span-6 bg-blue-600 text-white rounded-xl p-2">Tambah Siswa</button>
         </form>
     </div>
-    <table class="w-full text-sm"><tr class="text-left"><th>NIS</th><th>Nama</th><th>Kelas</th><th>Username</th><th>Status</th><th>Aksi</th></tr>
+    <table class="w-full text-sm"><tr class="text-left"><th>NIS</th><th>NISN</th><th>Nama</th><th>Email</th><th>Asal SMP</th><th>Jenis Kelamin</th><th>Kelas</th><th>Username</th><th>Status</th><th>Aksi</th></tr>
         @foreach($students as $s)
-        <tr class="border-t"><td>{{ $s->nis }}</td><td>{{ $s->nama }}</td><td>{{ $s->kelas }}</td><td>{{ $s->username }}</td><td>{{ $s->status }}</td><td>
-            <form method="post" action="{{ route('admin.students.destroy', $s) }}">@csrf @method('delete')<button class="text-red-500">Hapus</button></form></td></tr>
+        <tr class="border-t">
+            <td>{{ $s->nis }}</td>
+            <td>{{ $s->nisn ?? '-' }}</td>
+            <td>{{ $s->nama }}</td>
+            <td>{{ $s->email ?? '-' }}</td>
+            <td>{{ $s->asal_smp ?? '-' }}</td>
+            <td>{{ $s->jenis_kelamin ? ($s->jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan') : '-' }}</td>
+            <td>{{ $s->kelas }}</td>
+            <td>{{ $s->username }}</td>
+            <td>{{ $s->status }}</td>
+            <td>
+                <form method="post" action="{{ route('admin.students.destroy', $s) }}">@csrf @method('delete')<button class="text-red-500">Hapus</button></form>
+            </td>
+        </tr>
         @endforeach
     </table>
     <div class="mt-4">{{ $students->links() }}</div>

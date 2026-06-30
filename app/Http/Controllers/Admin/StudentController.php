@@ -16,7 +16,7 @@ class StudentController extends Controller
     public function index(Request $request): View|JsonResponse
     {
         $students = Student::query()
-            ->when($request->q, fn ($q) => $q->whereAny(['nis', 'nama', 'kelas'], 'like', "%{$request->q}%"))
+            ->when($request->q, fn ($q) => $q->whereAny(['nisn', 'nama', 'email', 'asal_smp', 'kelas'], 'like', "%{$request->q}%"))
             ->latest()->paginate(10)->withQueryString();
 
         if ($request->ajax()) {
@@ -29,8 +29,12 @@ class StudentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'nis' => 'required|unique:students,nis',
-            'nama' => 'required|string',
+            'nisn' => 'nullable|string|unique:students,nisn',
+            'nama' => 'required|string|max:255',
+            'email' => 'nullable|email|unique:students,email',
+            'asal_smp' => 'nullable|string|max:255',
+            'alamat_rumah' => 'nullable|string',
+            'jenis_kelamin' => 'nullable|in:L,P',
             'kelas' => 'required|string',
             'username' => 'required|unique:students,username|unique:users,username',
             'password' => 'required|min:6',
@@ -55,8 +59,12 @@ class StudentController extends Controller
     public function update(Request $request, Student $student): RedirectResponse
     {
         $data = $request->validate([
-            'nis' => "required|unique:students,nis,{$student->id}",
-            'nama' => 'required|string',
+            'nisn' => "nullable|string|unique:students,nisn,{$student->id}",
+            'nama' => 'required|string|max:255',
+            'email' => "nullable|email|unique:students,email,{$student->id}",
+            'asal_smp' => 'nullable|string|max:255',
+            'alamat_rumah' => 'nullable|string',
+            'jenis_kelamin' => 'nullable|in:L,P',
             'kelas' => 'required|string',
             'username' => "required|unique:students,username,{$student->id}",
             'password' => 'nullable|min:6',

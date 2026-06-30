@@ -110,10 +110,20 @@ class ExamSessionController extends Controller
             return response()->json(['ok' => false, 'action' => 'auto_submit', 'message' => 'Waktu ujian habis.'], 423);
         }
 
-        $data = $request->validate(['question_id' => 'required|integer', 'jawaban' => 'required|in:a,b,c,d,e']);
+        $question = Question::findOrFail($data['question_id']);
+        
+        // Determine answer format based on question type
+        $jawabanSiswa = $data['jawaban'];
+        if ($question->tipe_soal === 'multiple_answer' || $question->tipe_soal === 'checklist') {
+            $jawabanSiswa = json_encode($data['jawaban']);
+        }
+        
+        // Use scoring service for consistent scoring logic
+        $scoringService = app(ExamResultScoringService::class);
+        $scoreResult = $scoringService->calculateAnswerScore($question, $jawabanSiswa);
+        
         $answer = ExamAnswer::where('exam_result_id', $result->id)->where('question_id', $data['question_id'])->firstOrFail();
-        $correct = Question::findOrFail($data['question_id'])->jawaban_benar === $data['jawaban'];
-        $answer->update(['jawaban_siswa' => $data['jawaban'], 'is_correct' => $correct, 'answered_at' => now()]);
+        $answer->update(['jawaban_siswa' => $jawabanSiswa, 'is_correct' => $scoreResult['is_correct'], 'answered_at' => now()]);
 
         $scoring = app(ExamResultScoringService::class);
         $scoring->syncCounters($result->refresh());

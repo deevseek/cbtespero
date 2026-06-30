@@ -15,6 +15,7 @@ class Question extends Model
         'question_import_id',
         'mata_pelajaran',
         'kelas',
+        'tipe_soal',
         'soal',
         'image_path',
         'pilihan_a',
@@ -24,6 +25,8 @@ class Question extends Model
         'pilihan_e',
         'jawaban_benar',
         'bobot_nilai',
+        'scoring_method',
+        'scoring_parameters',
         'tingkat_kesulitan',
         'status',
         'needs_review',
@@ -32,6 +35,7 @@ class Question extends Model
     protected $casts = [
         'needs_review' => 'boolean',
         'bobot_nilai' => 'integer',
+        'scoring_parameters' => 'array',
     ];
 
     public function importBatch(): BelongsTo

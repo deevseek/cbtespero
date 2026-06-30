@@ -4,10 +4,201 @@ namespace App\Services;
 
 use App\Events\StudentExamSubmitted;
 use App\Models\ExamResult;
+use App\Models\Question;
 use Illuminate\Support\Facades\DB;
 
 class ExamResultScoringService
 {
+    /**
+     * Calculate score for a single answer based on question type and scoring method.
+     *
+     * @param Question $question
+     * @param string|null $jawabanSiswa
+     * @return array{is_correct: bool, score: float, partial_score: float|null}
+     */
+    public function calculateAnswerScore(Question $question, ?string $jawabanSiswa): array
+    {
+        if ($jawabanSiswa === null || $jawabanSiswa === '') {
+            return ['is_correct' => false, 'score' => 0, 'partial_score' => null];
+        }
+
+        $tipeSoal = $question->tipe_soal ?? 'pilihan_ganda';
+        $scoringMethod = $question->scoring_method ?? 'binary';
+        $bobotNilai = $question->bobot_nilai ?? 1;
+        $jawabanBenar = $question->jawaban_benar;
+        $scoringParams = $question->scoring_parameters ?? [];
+
+        switch ($tipeSoal) {
+            case 'multiple_answer':
+                return $this->calculateMultipleAnswerScore($jawabanBenar, $jawabanSiswa, $scoringMethod, $bobotNilai, $scoringParams);
+            case 'checklist':
+                return $this->calculateChecklistScore($jawabanBenar, $jawabanSiswa, $scoringMethod, $bobotNilai, $scoringParams);
+            case 'dropdown':
+            case 'pilihan_ganda':
+            default:
+                return $this->calculateSingleChoiceScore($jawabanBenar, $jawabanSiswa, $bobotNilai);
+        }
+    }
+
+    /**
+     * Calculate score for single choice (pilihan ganda / dropdown).
+     */
+    private function calculateSingleChoiceScore(string $jawabanBenar, string $jawabanSiswa, int $bobotNilai): array
+    {
+        $isCorrect = strtoupper($jawabanBenar) === strtoupper($jawabanSiswa);
+        return [
+            'is_correct' => $isCorrect,
+            'score' => $isCorrect ? $bobotNilai : 0,
+            'partial_score' => null,
+        ];
+    }
+
+    /**
+     * Calculate score for multiple answer questions.
+     * 
+     * Scoring methods:
+     * - binary: Full point if exactly correct, 0 otherwise
+     * - all_or_nothing: Same as binary
+     * - proporsional: Score = (correct selections / total correct answers) * bobot
+     * - minus: Score with penalty for wrong selections
+     */
+    private function calculateMultipleAnswerScore(string $jawabanBenar, string $jawabanSiswa, string $scoringMethod, int $bobotNilai, array $scoringParams): array
+    {
+        $correctAnswers = is_array($decoded = json_decode($jawabanBenar, true)) ? $decoded : [$jawabanBenar];
+        $studentAnswers = is_array($decoded = json_decode($jawabanSiswa, true)) ? $decoded : [$jawabanSiswa];
+
+        // Normalize to uppercase for comparison
+        $correctAnswers = array_map('strtoupper', $correctAnswers);
+        $studentAnswers = array_map('strtoupper', $studentAnswers);
+
+        // Count correct and wrong selections
+        $correctSelections = array_intersect($studentAnswers, $correctAnswers);
+        $wrongSelections = array_diff($studentAnswers, $correctAnswers);
+        $missedCorrect = array_diff($correctAnswers, $studentAnswers);
+
+        $totalCorrectAnswers = count($correctAnswers);
+        $totalStudentAnswers = count($studentAnswers);
+        $totalCorrectSelections = count($correctSelections);
+        $totalWrongSelections = count($wrongSelections);
+
+        // Check if exactly correct
+        $isExactlyCorrect = empty($wrongSelections) && empty($missedCorrect);
+
+        switch ($scoringMethod) {
+            case 'all_or_nothing':
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => $isExactlyCorrect ? $bobotNilai : 0,
+                    'partial_score' => $isExactlyCorrect ? null : round(($totalCorrectSelections / max(1, $totalCorrectAnswers)) * $bobotNilai, 2),
+                ];
+
+            case 'proporsional':
+                // Score = (correct selections / total correct answers) * bobot
+                $proportionalScore = ($totalCorrectSelections / max(1, $totalCorrectAnswers)) * $bobotNilai;
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => round($proportionalScore, 2),
+                    'partial_score' => null,
+                ];
+
+            case 'minus':
+                // Score with penalty for wrong selections
+                // penaltyFactor can be set in scoring_parameters, default 0.25 (25% penalty per wrong)
+                $penaltyFactor = $scoringParams['penalty_factor'] ?? 0.25;
+                $baseScore = ($totalCorrectSelections / max(1, $totalCorrectAnswers)) * $bobotNilai;
+                $penalty = $totalWrongSelections * ($bobotNilai * $penaltyFactor);
+                $finalScore = max(0, $baseScore - $penalty);
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => round($finalScore, 2),
+                    'partial_score' => null,
+                ];
+
+            case 'binary':
+            default:
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => $isExactlyCorrect ? $bobotNilai : 0,
+                    'partial_score' => null,
+                ];
+        }
+    }
+
+    /**
+     * Calculate score for checklist questions.
+     * 
+     * Checklist format for jawaban_benar: [{"benar": true}, {"benar": false}]
+     * Checklist format for jawaban_siswa: ["benar", "salah"] or [true, false]
+     */
+    private function calculateChecklistScore(string $jawabanBenar, string $jawabanSiswa, string $scoringMethod, int $bobotNilai, array $scoringParams): array
+    {
+        $correctAnswers = json_decode($jawabanBenar, true) ?? [];
+        $studentAnswers = json_decode($jawabanSiswa, true) ?? [];
+
+        if (!is_array($correctAnswers) || !is_array($studentAnswers)) {
+            return ['is_correct' => false, 'score' => 0, 'partial_score' => null];
+        }
+
+        $totalItems = count($correctAnswers);
+        $correctCount = 0;
+
+        foreach ($correctAnswers as $index => $correctItem) {
+            $expectedValue = $correctItem['benar'] ?? $correctItem['value'] ?? $correctItem;
+            $studentValue = $studentAnswers[$index] ?? null;
+
+            // Normalize student answer (could be "benar"/"salah" string or boolean)
+            if (is_string($studentValue)) {
+                $studentBool = strtolower($studentValue) === 'benar' || strtolower($studentValue) === 'ya' || $studentValue === 'true';
+            } else {
+                $studentBool = (bool) $studentValue;
+            }
+
+            $expectedBool = (bool) $expectedValue;
+            if ($studentBool === $expectedBool) {
+                $correctCount++;
+            }
+        }
+
+        $isExactlyCorrect = $correctCount === $totalItems;
+
+        switch ($scoringMethod) {
+            case 'all_or_nothing':
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => $isExactlyCorrect ? $bobotNilai : 0,
+                    'partial_score' => $isExactlyCorrect ? null : round(($correctCount / max(1, $totalItems)) * $bobotNilai, 2),
+                ];
+
+            case 'proporsional':
+                $proportionalScore = ($correctCount / max(1, $totalItems)) * $bobotNilai;
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => round($proportionalScore, 2),
+                    'partial_score' => null,
+                ];
+
+            case 'minus':
+                $wrongCount = $totalItems - $correctCount;
+                $penaltyFactor = $scoringParams['penalty_factor'] ?? 0.25;
+                $baseScore = ($correctCount / max(1, $totalItems)) * $bobotNilai;
+                $penalty = $wrongCount * ($bobotNilai * $penaltyFactor / max(1, $totalItems));
+                $finalScore = max(0, $baseScore - $penalty);
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => round($finalScore, 2),
+                    'partial_score' => null,
+                ];
+
+            case 'binary':
+            default:
+                return [
+                    'is_correct' => $isExactlyCorrect,
+                    'score' => $isExactlyCorrect ? $bobotNilai : 0,
+                    'partial_score' => null,
+                ];
+        }
+    }
+
     /**
      * Finalize and persist the exact result row read by admin pages.
      *
