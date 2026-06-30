@@ -5,16 +5,27 @@
     <form method="post" action="{{ route('admin.questions.store') }}" class="grid md:grid-cols-4 gap-2 mb-4">@csrf
         <input name="mata_pelajaran" placeholder="Mapel" class="border rounded-xl p-2" required>
         <input name="soal" placeholder="Soal" class="border rounded-xl p-2 md:col-span-3" required>
+        <select name="tipe_soal" class="border rounded-xl p-2">
+            <option value="pilihan_ganda">Pilihan Ganda (Single Answer)</option>
+            <option value="multiple_answer">Pilihan Ganda Kompleks (Multiple Answer)</option>
+            <option value="checklist">Checklist (Benar/Salah atau Ya/Tidak)</option>
+            <option value="dropdown">Dropdown</option>
+        </select>
         @foreach(['a','b','c','d','e'] as $opt)<input name="pilihan_{{ $opt }}" placeholder="Pilihan {{ strtoupper($opt) }}" class="border rounded-xl p-2" @if($opt!=='e') required @endif>@endforeach
         <select name="jawaban_benar" class="border rounded-xl p-2">@foreach(['a','b','c','d','e'] as $opt)<option>{{ $opt }}</option>@endforeach</select>
+        <select name="scoring_method" class="border rounded-xl p-2">
+            <option value="all_or_nothing">All or Nothing</option>
+            <option value="proportional">Proportional</option>
+            <option value="penalty">Penalty</option>
+        </select>
         <input type="number" name="bobot_nilai" value="1" class="border rounded-xl p-2">
         <select name="tingkat_kesulitan" class="border rounded-xl p-2"><option>mudah</option><option>sedang</option><option>sulit</option></select>
         <input name="image_path" placeholder="URL gambar" class="border rounded-xl p-2">
         <button class="bg-blue-600 text-white rounded-xl p-2 md:col-span-4">Tambah Soal</button>
     </form>
-    <table class="w-full text-sm"><tr><th>Mapel</th><th>Soal</th><th>Kesulitan</th><th>Aksi</th></tr>
+    <table class="w-full text-sm"><tr><th>Mapel</th><th>Soal</th><th>Tipe Soal</th><th>Kesulitan</th><th>Aksi</th></tr>
         @foreach($questions as $q)
-        <tr class="border-t"><td>{{ $q->mata_pelajaran }}</td><td>{{ \Illuminate\Support\Str::limit($q->soal, 70) }}</td><td>{{ $q->tingkat_kesulitan }}</td><td><form method="post" action="{{ route('admin.questions.destroy', $q) }}">@csrf @method('delete')<button class="text-red-500">Hapus</button></form></td></tr>
+        <tr class="border-t"><td>{{ $q->mata_pelajaran }}</td><td>{{ \Illuminate\Support\Str::limit($q->soal, 70) }}</td><td>{{ $q->tipe_soal_label }}</td><td>{{ $q->tingkat_kesulitan }}</td><td><form method="post" action="{{ route('admin.questions.destroy', $q) }}">@csrf @method('delete')<button class="text-red-500">Hapus</button></form></td></tr>
         @endforeach
     </table>
     <div class="mt-4">{{ $questions->links() }}</div>

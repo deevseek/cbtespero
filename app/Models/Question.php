@@ -36,6 +36,7 @@ class Question extends Model
         'needs_review' => 'boolean',
         'bobot_nilai' => 'integer',
         'scoring_parameters' => 'array',
+        'jawaban_benar' => 'array',
     ];
 
     public function importBatch(): BelongsTo

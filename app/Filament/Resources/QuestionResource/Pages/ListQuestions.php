@@ -116,6 +116,19 @@ class ListQuestions extends ListRecords
                     ])
                     ->default('draft')
                     ->helperText('Disimpan jika kolom status tersedia pada tabel questions.'),
+                Forms\Components\Select::make('tipe_soal_import')
+                    ->label('Tipe Soal Import')
+                    ->options([
+                        'auto' => 'Deteksi Otomatis',
+                        'pilihan_ganda' => 'Pilihan Ganda',
+                        'multiple_answer' => 'Pilihan Ganda Kompleks / Multiple Answer',
+                        'checklist' => 'Checklist Benar/Salah atau Ya/Tidak',
+                        'dropdown' => 'Dropdown',
+                    ])
+                    ->default('auto')
+                    ->required()
+                    ->native(false)
+                    ->helperText('Pilih Auto jika ingin sistem membaca tipe dari Google Form. Untuk PDF/Word biasa, pilih tipe secara manual jika format file tidak bisa dideteksi.'),
             ])
             ->action(fn (array $data) => $this->handleImport($data));
     }
@@ -185,6 +198,7 @@ class ListQuestions extends ListRecords
             'bobot_nilai' => $data['bobot_nilai'] ?? 1,
             'status' => $data['status'] ?? 'draft',
             'source_url' => $data['google_form_url'] ?? null,
+            'tipe_soal_import' => $data['tipe_soal_import'] ?? 'auto',
         ];
     }
 

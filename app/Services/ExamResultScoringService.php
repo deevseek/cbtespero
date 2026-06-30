@@ -28,11 +28,21 @@ class ExamResultScoringService
         $jawabanBenar = $question->jawaban_benar;
         $scoringParams = $question->scoring_parameters ?? [];
 
+        // Normalize scoringMethod to new consistent names
+        $normalizedScoringMethod = $scoringMethod;
+        if ($normalizedScoringMethod === 'proporsional') {
+            $normalizedScoringMethod = 'proportional';
+        } elseif ($normalizedScoringMethod === 'minus') {
+            $normalizedScoringMethod = 'penalty';
+        } elseif ($normalizedScoringMethod === 'binary') {
+            $normalizedScoringMethod = 'all_or_nothing';
+        }
+
         switch ($tipeSoal) {
             case 'multiple_answer':
-                return $this->calculateMultipleAnswerScore($jawabanBenar, $jawabanSiswa, $scoringMethod, $bobotNilai, $scoringParams);
+                return $this->calculateMultipleAnswerScore($jawabanBenar, $jawabanSiswa, $normalizedScoringMethod, $bobotNilai, $scoringParams);
             case 'checklist':
-                return $this->calculateChecklistScore($jawabanBenar, $jawabanSiswa, $scoringMethod, $bobotNilai, $scoringParams);
+                return $this->calculateMultipleAnswerScore($jawabanBenar, $jawabanSiswa, $normalizedScoringMethod, $bobotNilai, $scoringParams);
             case 'dropdown':
             case 'pilihan_ganda':
             default:

@@ -44,7 +44,8 @@ class QuestionResource extends Resource
                 ->native(false)
                 ->default('pilihan_ganda')
                 ->reactive()
-                ->live(),
+                ->live()
+                ->afterStateUpdated(fn ($state, Forms\Set $set) => $set('jawaban_benar', null)),
             Forms\Components\Textarea::make('soal')->label('Soal')->rows(6)->columnSpanFull(),
             
             // Options section - visible for all types except checklist
@@ -87,7 +88,7 @@ class QuestionResource extends Resource
                         ->visible(fn (Get $get): bool => in_array($get('tipe_soal'), ['pilihan_ganda', 'dropdown', null])),
                     
                     // For multiple answer
-                    Forms\Components\CheckboxList::make('jawaban_benar_multiple')
+                    Forms\Components\CheckboxList::make('jawaban_benar')
                         ->label('Jawaban Benar (Multiple)')
                         ->options([
                             'a' => 'Opsi A',

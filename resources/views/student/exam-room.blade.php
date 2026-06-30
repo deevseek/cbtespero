@@ -74,33 +74,124 @@
     </div>
 
     <div class="space-y-4">
-        @foreach($answers as $item)
+            @foreach($answers as $item)
             @php
                 $question = $item->question;
                 $savedAnswer = optional($answerMap->get($question->id))->jawaban_siswa;
+                $questionType = $question->tipe_soal ?? 'pilihan_ganda';
+                $savedAnswerArray = is_string($savedAnswer) ? json_decode($savedAnswer, true) : $savedAnswer;
+                if (!is_array($savedAnswerArray)) $savedAnswerArray = $savedAnswer ? [$savedAnswer] : [];
             @endphp
             <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" id="question-{{ $question->id }}">
                 <div class="flex gap-3">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-600 font-black text-white">{{ $loop->iteration }}</div>
                     <div class="min-w-0 flex-1">
-                        <p class="whitespace-pre-line text-base font-semibold leading-relaxed text-slate-900">{{ $question->soal }}</p>
-                        <div class="mt-4 space-y-2">
-                            @foreach(['a','b','c','d','e'] as $opt)
-                                @php($field = 'pilihan_'.$opt)
-                                @if($question->$field)
-                                    <button
-                                        type="button"
-                                        data-answer-button
-                                        data-question-id="{{ $question->id }}"
-                                        data-answer="{{ $opt }}"
-                                        aria-pressed="{{ $savedAnswer === $opt ? 'true' : 'false' }}"
-                                        class="block w-full rounded-2xl border p-3 text-left text-sm font-semibold transition hover:border-blue-300 hover:bg-blue-50 {{ $savedAnswer === $opt ? 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-200' : 'border-slate-200 text-slate-700' }}"
-                                    >
-                                        <span class="mr-2 font-black">{{ strtoupper($opt) }}.</span> {{ $question->$field }}
-                                    </button>
-                                @endif
-                            @endforeach
+                        <div class="flex items-center gap-2">
+                            <p class="whitespace-pre-line text-base font-semibold leading-relaxed text-slate-900">{{ $question->soal }}</p>
+                            @if($questionType !== 'pilihan_ganda')
+                                <span class="shrink-0 rounded-lg bg-purple-100 px-2 py-1 text-xs font-bold text-purple-700">
+                                    {{ ['multiple_answer' => 'Multiple Answer', 'checklist' => 'Checklist', 'dropdown' => 'Dropdown'][$questionType] ?? 'Pilihan Ganda' }}
+                                </span>
+                            @endif
                         </div>
+
+                        @if($questionType === 'dropdown')
+                            <div class="mt-4">
+                                <select 
+                                    data-answer-dropdown
+                                    data-question-id="{{ $question->id }}"
+                                    class="block w-full rounded-2xl border border-slate-200 p-3 text-sm font-semibold text-slate-700 transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                >
+                                    <option value="">-- Pilih Jawaban --</option>
+                                    @foreach(['a','b','c','d','e'] as $opt)
+                                        @php($field = 'pilihan_'.$opt)
+                                        @if($question->$field)
+                                            <option value="{{ $opt }}" {{ $savedAnswer === $opt ? 'selected' : '' }}>
+                                                {{ strtoupper($opt) }}. {{ $question->$field }}
+                                            </option>
+                                        @endif
+                                    @endforeach
+                                </select>
+                            </div>
+
+                        @elseif($questionType === 'multiple_answer')
+                            <div class="mt-4 space-y-2">
+                                @foreach(['a','b','c','d','e'] as $opt)
+                                    @php($field = 'pilihan_'.$opt)
+                                    @if($question->$field)
+                                        <label class="flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition hover:border-blue-300 hover:bg-blue-50 {{ in_array($opt, $savedAnswerArray) ? 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-200' : 'border-slate-200 text-slate-700' }}">
+                                            <input
+                                                type="checkbox"
+                                                data-answer-checkbox
+                                                data-question-id="{{ $question->id }}"
+                                                value="{{ $opt }}"
+                                                {{ in_array($opt, $savedAnswerArray) ? 'checked' : '' }}
+                                                class="mt-1 h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                            >
+                                            <span class="flex-1 text-sm font-semibold">
+                                                <span class="font-black">{{ strtoupper($opt) }}.</span> {{ $question->$field }}
+                                            </span>
+                                        </label>
+                                    @endif
+                                @endforeach
+                            </div>
+
+                        @elseif($questionType === 'checklist')
+                            @php
+                                $checklistItems = is_array($question->jawaban_benar) ? $question->jawaban_benar : json_decode($question->jawaban_benar ?? '[]', true);
+                                if (!is_array($checklistItems)) $checklistItems = [];
+                            @endphp
+                            <div class="mt-4 space-y-3">
+                                @foreach($checklistItems as $index => $item)
+                                    @php
+                                        $statement = is_array($item) ? ($item['statement'] ?? '') : '';
+                                        $savedValue = $savedAnswerArray[$index] ?? null;
+                                    @endphp
+                                    @if($statement)
+                                        <div class="rounded-2xl border border-slate-200 p-4">
+                                            <p class="text-sm font-semibold text-slate-700">{{ $statement }}</p>
+                                            <div class="mt-2 flex gap-2">
+                                                @foreach(['true' => 'Benar', 'false' => 'Salah'] as $val => $label)
+                                                    <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border p-2 transition hover:border-blue-300 hover:bg-blue-50 {{ $savedValue === $val ? 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-200' : 'border-slate-200 text-slate-700' }}">
+                                                        <input
+                                                            type="radio"
+                                                            name="checklist_{{ $question->id }}_{{ $index }}"
+                                                            data-answer-checklist
+                                                            data-question-id="{{ $question->id }}"
+                                                            data-index="{{ $index }}"
+                                                            value="{{ $val }}"
+                                                            {{ $savedValue === $val ? 'checked' : '' }}
+                                                            class="h-4 w-4 border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                                        >
+                                                        <span class="text-sm font-bold">{{ $label }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+
+                        @else
+                            {{-- Default: pilihan_ganda --}}
+                            <div class="mt-4 space-y-2">
+                                @foreach(['a','b','c','d','e'] as $opt)
+                                    @php($field = 'pilihan_'.$opt)
+                                    @if($question->$field)
+                                        <button
+                                            type="button"
+                                            data-answer-button
+                                            data-question-id="{{ $question->id }}"
+                                            data-answer="{{ $opt }}"
+                                            aria-pressed="{{ $savedAnswer === $opt ? 'true' : 'false' }}"
+                                            class="block w-full rounded-2xl border p-3 text-left text-sm font-semibold transition hover:border-blue-300 hover:bg-blue-50 {{ $savedAnswer === $opt ? 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-200' : 'border-slate-200 text-slate-700' }}"
+                                        >
+                                            <span class="mr-2 font-black">{{ strtoupper($opt) }}.</span> {{ $question->$field }}
+                                        </button>
+                                    @endif
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
                 </div>
             </article>

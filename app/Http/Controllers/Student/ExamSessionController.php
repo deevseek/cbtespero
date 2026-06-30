@@ -110,23 +110,55 @@ class ExamSessionController extends Controller
             return response()->json(['ok' => false, 'action' => 'auto_submit', 'message' => 'Waktu ujian habis.'], 423);
         }
 
+        $data = $request->validate([
+            'question_id' => 'required|integer|exists:questions,id',
+            'jawaban' => 'required',
+        ]);
+
         $question = Question::findOrFail($data['question_id']);
         
-        // Determine answer format based on question type
-        $jawabanSiswa = $data['jawaban'];
-        if ($question->tipe_soal === 'multiple_answer' || $question->tipe_soal === 'checklist') {
-            $jawabanSiswa = json_encode($data['jawaban']);
+        // Verify question belongs to this exam result
+        $answer = ExamAnswer::where('exam_result_id', $result->id)->where('question_id', $data['question_id'])->first();
+        if (!$answer) {
+            return response()->json(['ok' => false, 'message' => 'Soal tidak ditemukan dalam ujian ini.'], 404);
         }
-        
+
+        // Normalize and format answer based on question type
+        $rawJawaban = $data['jawaban'];
+        $tipeSoal = $question->tipe_soal ?? 'pilihan_ganda';
+
+        if ($tipeSoal === 'multiple_answer') {
+            // Array of selected options
+            if (is_array($rawJawaban)) {
+                $jawabanSiswa = json_encode(array_map('strtolower', $rawJawaban));
+            } elseif (is_string($rawJawaban)) {
+                $decoded = json_decode($rawJawaban, true);
+                $jawabanSiswa = json_encode(is_array($decoded) ? array_map('strtolower', $decoded) : [strtolower($rawJawaban)]);
+            } else {
+                $jawabanSiswa = '[]';
+            }
+        } elseif ($tipeSoal === 'checklist') {
+            // Array of {index, value} objects
+            if (is_string($rawJawaban)) {
+                $decoded = json_decode($rawJawaban, true);
+                $jawabanSiswa = json_encode(is_array($decoded) ? $decoded : []);
+            } elseif (is_array($rawJawaban)) {
+                $jawabanSiswa = json_encode($rawJawaban);
+            } else {
+                $jawabanSiswa = '[]';
+            }
+        } else {
+            // pilihan_ganda, dropdown - single string answer
+            $jawabanSiswa = is_array($rawJawaban) ? json_encode($rawJawaban) : strtolower((string) $rawJawaban);
+        }
+
         // Use scoring service for consistent scoring logic
         $scoringService = app(ExamResultScoringService::class);
         $scoreResult = $scoringService->calculateAnswerScore($question, $jawabanSiswa);
         
-        $answer = ExamAnswer::where('exam_result_id', $result->id)->where('question_id', $data['question_id'])->firstOrFail();
         $answer->update(['jawaban_siswa' => $jawabanSiswa, 'is_correct' => $scoreResult['is_correct'], 'answered_at' => now()]);
 
-        $scoring = app(ExamResultScoringService::class);
-        $scoring->syncCounters($result->refresh());
+        $scoringService->syncCounters($result->refresh());
         StudentAnswerSaved::dispatch($result, (int) $data['question_id']);
 
         return response()->json([

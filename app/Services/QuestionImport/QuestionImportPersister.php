@@ -173,6 +173,7 @@ class QuestionImportPersister
         $attributes = [
             'question_import_id' => $batch->id,
             'mata_pelajaran' => (string) ($options['mata_pelajaran'] ?? ''),
+            'tipe_soal' => $this->normalizeQuestionType($question, $options),
             'soal' => (string) ($question['question_text'] ?? ''),
             'pilihan_a' => (string) ($questionOptions['A'] ?? ''),
             'pilihan_b' => (string) ($questionOptions['B'] ?? ''),
@@ -199,5 +200,35 @@ class QuestionImportPersister
         }
 
         return $attributes;
+    }
+
+    private function normalizeQuestionType(array $question, array $options): string
+    {
+        $forcedType = $options['tipe_soal_import'] ?? 'auto';
+
+        if ($forcedType !== 'auto' && filled($forcedType)) {
+            return $forcedType;
+        }
+
+        $type = $question['tipe_soal'] ?? $question['type'] ?? 'pilihan_ganda';
+
+        return match ($type) {
+            'pilihan_ganda' => 'pilihan_ganda',
+            'multiple_choice' => 'pilihan_ganda',
+            'radio' => 'pilihan_ganda',
+
+            'multiple_answer' => 'multiple_answer',
+            'checkbox' => 'multiple_answer',
+            'checkboxes' => 'multiple_answer',
+
+            'checklist' => 'checklist',
+            'true_false' => 'checklist',
+            'benar_salah' => 'checklist',
+
+            'dropdown' => 'dropdown',
+            'select' => 'dropdown',
+
+            default => 'pilihan_ganda',
+        };
     }
 }

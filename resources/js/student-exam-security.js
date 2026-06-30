@@ -88,12 +88,41 @@ class StudentExamSecurity {
     }
 
     bindAnswerButtons() {
+        // Single choice buttons (pilihan_ganda)
         document.querySelectorAll('[data-answer-button]').forEach((button) => {
             button.addEventListener('click', () => {
                 const questionId = Number(button.dataset.questionId);
                 const answer = button.dataset.answer;
                 this.currentQuestion = questionId;
                 this.selectAnswer(questionId, answer, button);
+            });
+        });
+
+        // Dropdown selects
+        document.querySelectorAll('[data-answer-dropdown]').forEach((select) => {
+            select.addEventListener('change', () => {
+                const questionId = Number(select.dataset.questionId);
+                const answer = select.value;
+                this.currentQuestion = questionId;
+                this.selectDropdownAnswer(questionId, answer, select);
+            });
+        });
+
+        // Multiple answer checkboxes
+        document.querySelectorAll('[data-answer-checkbox]').forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                const questionId = Number(checkbox.dataset.questionId);
+                this.currentQuestion = questionId;
+                this.collectAndSaveMultipleAnswers(questionId);
+            });
+        });
+
+        // Checklist radio buttons
+        document.querySelectorAll('[data-answer-checklist]').forEach((radio) => {
+            radio.addEventListener('change', () => {
+                const questionId = Number(radio.dataset.questionId);
+                this.currentQuestion = questionId;
+                this.collectAndSaveChecklistAnswers(questionId);
             });
         });
     }
@@ -238,6 +267,73 @@ class StudentExamSecurity {
         this.pendingAnswers.set(questionId, answer);
         this.updateSelectedState(questionId, button);
         await this.flushAnswer(questionId, answer);
+    }
+
+    async selectDropdownAnswer(questionId, answer, selectElement) {
+        this.pendingAnswers.set(questionId, answer);
+        selectElement.closest('article')?.setAttribute('data-answered', 'true');
+        await this.flushAnswer(questionId, answer);
+    }
+
+    async collectAndSaveMultipleAnswers(questionId) {
+        const checkboxes = document.querySelectorAll(`[data-answer-checkbox][data-question-id="${questionId}"]`);
+        const selected = [];
+        checkboxes.forEach((cb) => {
+            if (cb.checked) {
+                selected.push(cb.value);
+            }
+        });
+        
+        // Update visual state
+        checkboxes.forEach((cb) => {
+            const label = cb.closest('label');
+            if (cb.checked) {
+                label?.classList.add('border-blue-500', 'bg-blue-50', 'text-blue-900', 'ring-2', 'ring-blue-200');
+            } else {
+                label?.classList.remove('border-blue-500', 'bg-blue-50', 'text-blue-900', 'ring-2', 'ring-blue-200');
+            }
+        });
+
+        const article = document.querySelector(`#question-${questionId}`);
+        if (selected.length > 0) {
+            article?.setAttribute('data-answered', 'true');
+        } else {
+            article?.removeAttribute('data-answered');
+        }
+
+        this.pendingAnswers.set(questionId, selected);
+        await this.flushAnswer(questionId, selected);
+    }
+
+    async collectAndSaveChecklistAnswers(questionId) {
+        const radios = document.querySelectorAll(`[data-answer-checklist][data-question-id="${questionId}"]`);
+        const answers = {};
+        radios.forEach((radio) => {
+            if (radio.checked) {
+                const index = radio.dataset.index;
+                answers[index] = radio.value;
+            }
+        });
+
+        // Update visual state
+        radios.forEach((radio) => {
+            const label = radio.closest('label');
+            if (radio.checked) {
+                label?.classList.add('border-blue-500', 'bg-blue-50', 'text-blue-900', 'ring-2', 'ring-blue-200');
+            } else {
+                label?.classList.remove('border-blue-500', 'bg-blue-50', 'text-blue-900', 'ring-2', 'ring-blue-200');
+            }
+        });
+
+        const article = document.querySelector(`#question-${questionId}`);
+        if (Object.keys(answers).length > 0) {
+            article?.setAttribute('data-answered', 'true');
+        }
+
+        // Convert to array format for backend
+        const answerArray = Object.entries(answers).map(([index, value]) => ({ index: parseInt(index), value }));
+        this.pendingAnswers.set(questionId, answerArray);
+        await this.flushAnswer(questionId, answerArray);
     }
 
     updateSelectedState(questionId, selectedButton) {

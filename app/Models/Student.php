@@ -10,7 +10,7 @@ class Student extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nisn', 'nama', 'email', 'asal_smp', 'alamat_rumah', 'jenis_kelamin', 'kelas', 'username', 'password', 'status'];
+    protected $fillable = ['nis', 'nisn', 'nama', 'email', 'asal_smp', 'alamat_rumah', 'jenis_kelamin', 'kelas', 'username', 'password', 'status'];
 
     protected $hidden = ['password'];
 
